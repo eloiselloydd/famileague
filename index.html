@@ -296,8 +296,24 @@
         <div class="big" id="revealCode">—</div>
         <p>Everyone in your house uses this code.</p>
       </div>
+      <button class="btn gold" onclick="copyCode(document.getElementById('revealCode').textContent)">Copy code</button>
+      <button class="btn" onclick="finishOnb()">Start playing →</button>
+    </div>
+
+    <!-- join an existing family by code -->
+    <div class="step" id="stepJoin">
+      <div class="hero"><div class="big">🔑</div><h2>Join a family</h2><p>Enter the code someone in your family shared with you.</p></div>
+      <div class="fld">
+        <label>Family code</label>
+        <input id="joinCodeIn" class="codeinput" placeholder="ABCD-1234">
+      </div>
+      <p style="font-size:12px;color:var(--muted);text-align:center;margin:-6px 2px 16px;font-weight:600;">This pulls up your real family and syncs it to this device, so everyone can add points from their own phone.</p>
+      <button class="btn" onclick="joinFamily()">Join family →</button>
+      <button class="backlink" onclick="goStep('stepWelcome')">← Back</button>
+    </div>
 </div>
 
+</div>
 <!-- ============ MAIN APP ============ -->
 <div class="wrap" id="app" style="display:none;">
   <header>
