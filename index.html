@@ -136,6 +136,32 @@
   .tile .cn{font-size:14px;font-weight:700;line-height:1.15;flex:1;min-width:0;}
   .tile .pt{font-size:12px;font-weight:800;color:var(--indigo);background:var(--indigo-tint);border-radius:8px;padding:2px 7px;flex:none;}
   .tile .pt.neg{color:#9a6a3a;background:#efe2d2;}
+  .seclbl .val.neg{color:#9a6a3a;background:#efe2d2;}
+
+  /* ---------- Undo ---------- */
+  .undobtn{display:block;width:100%;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:13px;font-size:13px;font-weight:800;color:var(--ink);cursor:pointer;font-family:inherit;margin-top:16px;letter-spacing:.02em;}
+  .undobtn:disabled{opacity:.4;cursor:default;}
+  .undobtn:not(:disabled):active{transform:scale(.98);}
+
+  /* ---------- Past winners ---------- */
+  .champs{margin-top:26px;}
+  .champrow{display:flex;flex-direction:column;gap:10px;}
+  .champpill{background:var(--card);border:1px solid var(--line);box-shadow:var(--shadow);border-radius:22px;padding:13px 20px;font-size:15px;font-weight:700;color:var(--ink);letter-spacing:.01em;}
+  .champpill b{color:var(--indigo);}
+  .champ-empty{font-size:13px;color:var(--muted);font-weight:600;padding:2px;}
+
+  /* ---------- History log ---------- */
+  .kid .book{font-size:11px;opacity:.32;margin-left:5px;}
+  .histrow{display:flex;align-items:center;gap:10px;background:var(--card);border:2px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;}
+  .histrow .he{font-size:20px;flex:none;line-height:1;}
+  .histrow .hl{flex:1;min-width:0;font-size:14px;font-weight:700;line-height:1.2;}
+  .histrow .hd{font-size:11px;color:var(--muted);font-weight:700;flex:none;}
+  .histrow .hp{font-size:15px;font-weight:800;flex:none;font-variant-numeric:tabular-nums;min-width:32px;text-align:right;}
+  .histrow .hp.pos{color:var(--indigo);}
+  .histrow .hp.neg{color:#9a6a3a;}
+  .histrow .hx{flex:none;background:none;border:none;font-size:15px;cursor:pointer;opacity:.5;padding:2px 4px;font-family:inherit;}
+  .histrow .hx:active{opacity:1;}
+  .hist-empty{font-size:13px;color:var(--muted);font-weight:600;text-align:center;padding:16px;}
 
   /* fly-up point */
   .fly{position:fixed;z-index:60;font-weight:800;font-size:22px;color:var(--gold);pointer-events:none;animation:fly 1s ease-out forwards;}
@@ -348,12 +374,20 @@
     <div class="pick" id="picker"></div>
     <div class="hint" id="pickHint">Pick a kid, then tap a chore.</div>
     <div class="grid" id="chores"></div>
+
+    <div class="seclbl" id="loseLbl" hidden><span class="txt">Lose points</span><span class="rule"></span><span class="val neg">docked</span></div>
+    <div class="grid" id="choresNeg" hidden></div>
+
+    <button class="undobtn" id="undoBtn" onclick="undoLast()" disabled>↩︎ Undo last</button>
+
+    <div class="champs">
+      <div class="seclbl"><span class="txt">Past winners</span><span class="rule"></span></div>
+      <div class="champrow" id="champs"></div>
+    </div>
   </div>
 
   <!-- PAGE: THE LEAGUE -->
   <div class="page" id="pgLeague">
-      <button class="code" onclick="copyCode(state.school && state.school.code)">🔗 <b id="sbCode">—</b></button>
-    </div>
     <div class="seclbl"><span class="txt" id="leagueLbl">This week</span><span class="rule"></span>
       <button class="filtbtn" id="filtBtn" onclick="openClassFilter()" hidden>⚙️ Choose classes</button></div>
     <div id="leagueList"></div>
@@ -431,6 +465,15 @@
   </div>
 </div>
 
+<!-- ============ HISTORY LOG SHEET ============ -->
+<div class="sheet" id="histSheet">
+  <div class="panel">
+    <h3 id="histTitle">Log</h3>
+    <div id="histList"></div>
+    <button class="btn" onclick="closeHistory()" style="margin-top:16px;">Done</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -456,7 +499,11 @@
     {id:"j7",label:"Took out rubbish",emoji:"🗑️",pts:2},
     {id:"j8",label:"Ready on time",emoji:"⏰",pts:2},
     {id:"j9",label:"No screen fuss",emoji:"📵",pts:2},
-    {id:"j10",label:"Went the extra mile",emoji:"⭐",pts:3}
+    {id:"j10",label:"Went the extra mile",emoji:"⭐",pts:3},
+    {id:"n1",label:"Didn't listen",emoji:"🙉",pts:-1},
+    {id:"n2",label:"Unkind to a sibling",emoji:"💔",pts:-1},
+    {id:"n3",label:"Left a big mess",emoji:"🌪️",pts:-1},
+    {id:"n4",label:"Rude or backchat",emoji:"😤",pts:-1}
   ];
   var STORE_KEY = "famileague_v1";
   var state = null;
@@ -892,7 +939,7 @@
     document.getElementById("hdrCrest").textContent=me.crest;
     document.getElementById("cbName").textContent=me.name;
     document.getElementById("cbCode").textContent=me.code;
-    renderBoard(); renderPrize(); renderPicker(); renderChores(); renderLeague();
+    renderBoard(); renderPrize(); renderPicker(); renderChores(); renderChampions(); updateUndo(); renderLeague();
   }
 
   function renderBoard(){
@@ -916,8 +963,9 @@
       el.style.setProperty("--c",k.colour);
       el.innerHTML='<div class="pl">'+medals[idx]+'</div>'+
         '<div class="av">'+k.initial+'</div>'+
-        '<div class="mid"><div class="nm">'+esc(k.name)+'</div><div class="bar"><span style="width:'+Math.round((p/max)*100)+'%"></span></div></div>'+
+        '<div class="mid"><div class="nm">'+esc(k.name)+'<span class="book">📖</span></div><div class="bar"><span style="width:'+Math.round((p/max)*100)+'%"></span></div></div>'+
         '<div class="pts" data-k="'+k.id+'">'+p+'</div>';
+      el.onclick=function(){ openHistory(k.id); };
       box.appendChild(el);
     });
     document.getElementById("weekTotal").textContent=weekTotalOf(me)+" pts";
@@ -948,14 +996,21 @@
   }
 
   function renderChores(){
-    var me=state.me, box=document.getElementById("chores"); box.innerHTML="";
+    var me=state.me;
+    var pos=document.getElementById("chores"); pos.innerHTML="";
+    var neg=document.getElementById("choresNeg"); if(neg) neg.innerHTML="";
+    var negCount=0;
     me.jobs.forEach(function(j){
       var t=document.createElement("button"); t.className="tile";
       t.innerHTML='<span class="em">'+j.emoji+'</span><span class="cn">'+esc(j.label)+'</span>'+
         '<span class="pt'+(j.pts<0?" neg":"")+'">'+(j.pts>0?"+":"")+j.pts+'</span>';
       t.onclick=function(ev){ award(j, t, ev); };
-      box.appendChild(t);
+      if(j.pts<0){ negCount++; if(neg) neg.appendChild(t); }
+      else pos.appendChild(t);
     });
+    var loseLbl=document.getElementById("loseLbl");
+    if(loseLbl) loseLbl.hidden = negCount===0;
+    if(neg) neg.hidden = negCount===0;
   }
 
   function award(job, tile, ev){
@@ -964,16 +1019,96 @@
       toast("Pick a kid first ☝️"); return;
     }
     var me=state.me;
-    me.points[selected]=(me.points[selected]||0)+job.pts;
-    if(me.points[selected]<0) me.points[selected]=0;
+    var cur=me.points[selected]||0;
+    var next=Math.max(0, cur+job.pts);
+    var applied=next-cur;                 // real change after clamping at 0 (for accurate undo)
+    me.points[selected]=next;
     me.allTime=Math.max(0,(me.allTime||0)+job.pts);
-    // keep my own league row in sync
+    var kid=me.kids.filter(function(k){return k.id===selected;})[0];
+    if(!state.log) state.log=[];
+    state.log.push({kid:selected, kidName:kid?kid.name:"", label:job.label, emoji:job.emoji, pts:job.pts, applied:applied, ts:Date.now()});
+    if(state.log.length>300) state.log.shift();
     save();
     tile.classList.add("flash"); setTimeout(function(){tile.classList.remove("flash");},260);
     flyPoint(ev, job.pts);
-    renderBoard();
+    renderBoard(); updateUndo();
     var pill=document.querySelector('.pts[data-k="'+selected+'"]');
     if(pill){ pill.classList.remove("pop"); void pill.offsetWidth; pill.classList.add("pop"); }
+  }
+
+  function updateUndo(){ var b=document.getElementById("undoBtn"); if(b) b.disabled = !(state.log && state.log.length); }
+
+  window.undoLast = function(){
+    if(!state.log || !state.log.length) return;
+    var last=state.log.pop();
+    var me=state.me;
+    var delta=(last.applied!==undefined)?last.applied:last.pts;
+    me.points[last.kid]=Math.max(0,(me.points[last.kid]||0)-delta);
+    me.allTime=Math.max(0,(me.allTime||0)-last.pts);
+    save();
+    renderBoard(); updateUndo();
+    var pill=document.querySelector('.pts[data-k="'+last.kid+'"]');
+    if(pill){ pill.classList.remove("pop"); void pill.offsetWidth; pill.classList.add("pop"); }
+    toast("Undone");
+  };
+
+  // ---------- per-kid history log ----------
+  window.openHistory = function(kidId){
+    var me=state.me;
+    var kid=me.kids.filter(function(k){return k.id===kidId;})[0];
+    if(!kid) return;
+    var t=document.getElementById("histTitle");
+    t.textContent=kid.name+" — this week"; t.style.color=kid.colour;
+    renderHistory(kidId);
+    document.getElementById("histSheet").classList.add("show");
+  };
+  window.closeHistory = function(){ document.getElementById("histSheet").classList.remove("show"); };
+  function renderHistory(kidId){
+    var list=document.getElementById("histList"); list.innerHTML="";
+    var rows=[];
+    (state.log||[]).forEach(function(e,i){ if(e.kid===kidId) rows.push({e:e,i:i}); });
+    rows.reverse();  // newest first
+    if(!rows.length){ list.innerHTML='<div class="hist-empty">No chores logged yet this week.</div>'; return; }
+    rows.forEach(function(r){
+      var e=r.e, d=new Date(e.ts);
+      var el=document.createElement("div"); el.className="histrow";
+      el.innerHTML='<span class="he">'+(e.emoji||"•")+'</span>'+
+        '<span class="hl">'+esc(e.label||"Chore")+'</span>'+
+        '<span class="hd">'+d.getDate()+'/'+(d.getMonth()+1)+'</span>'+
+        '<span class="hp '+(e.pts<0?"neg":"pos")+'">'+(e.pts>0?"+":"")+e.pts+'</span>'+
+        '<button class="hx" title="Remove">🗑️</button>';
+      el.querySelector(".hx").onclick=function(){ removeLogEntry(r.i, kidId); };
+      list.appendChild(el);
+    });
+  }
+  function removeLogEntry(index, kidId){
+    if(!state.log || !state.log[index]) return;
+    var e=state.log[index], me=state.me;
+    var delta=(e.applied!==undefined)?e.applied:e.pts;
+    me.points[e.kid]=Math.max(0,(me.points[e.kid]||0)-delta);
+    me.allTime=Math.max(0,(me.allTime||0)-e.pts);
+    state.log.splice(index,1);
+    save();
+    renderBoard(); updateUndo(); renderHistory(kidId);
+  }
+
+  // ---------- past winners (family champions) ----------
+  function renderChampions(){
+    var wrap=document.getElementById("champs"); if(!wrap) return;
+    var champs=state.champions||[];
+    if(!champs.length){ wrap.innerHTML='<span class="champ-empty">The first winner shows up here after you end a week.</span>'; return; }
+    wrap.innerHTML="";
+    champs.slice(0,8).forEach(function(c){
+      var pill=document.createElement("div"); pill.className="champpill";
+      pill.innerHTML='<b>'+esc(c.name)+'</b> · '+c.pts+'pt · '+prettyWeek(c.week);
+      wrap.appendChild(pill);
+    });
+  }
+  function prettyWeek(k){
+    var p=String(k||"").split("-"); if(p.length<3) return String(k||"");
+    var d=new Date(+p[0],+p[1]-1,+p[2]);
+    var WD=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], MO=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return WD[d.getDay()]+" "+d.getDate()+" "+MO[d.getMonth()];
   }
 
   function flyPoint(ev,pts){
@@ -1247,7 +1382,9 @@
     var me=state.me;
     var w=winnerOf(me);
     if(w){ state.champions.unshift({week:me.week, name:w.names.join(" & "), pts:w.pts}); }
+    if(state.champions.length>20) state.champions=state.champions.slice(0,20);
     me.kids.forEach(function(k){ me.points[k.id]=0; });
+    state.log=[];
     me.week=weekKey();
     selected=null;
     save(); renderAll(); closeSettings();
@@ -1301,6 +1438,12 @@
       if(state.rev === undefined) state.rev = 0;
       // never leave a class with nothing to award
       if(!state.me.jobs || !state.me.jobs.length) state.me.jobs = DEFAULT_JOBS.map(function(j){ return Object.assign({},j); });
+      // new features: activity log, past winners, and negative "lose points" chores
+      if(!state.log) state.log = [];
+      if(!state.champions) state.champions = [];
+      if(!state.me.jobs.some(function(j){ return j.pts < 0; })){
+        state.me.jobs = state.me.jobs.concat(DEFAULT_JOBS.filter(function(j){ return j.pts < 0; }).map(function(j){ return Object.assign({},j); }));
+      }
       if(!state.me.points) state.me.points = {};
       state.me.kids.forEach(function(k){ if(typeof state.me.points[k.id] !== "number") state.me.points[k.id] = 0; });
       document.getElementById("app").style.display="block";
