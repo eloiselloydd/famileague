@@ -287,8 +287,12 @@
         <h2>Famileague</h2>
         <p>Turn chores into a game your kids actually want to play. Rack up points, crown a weekly champ, and go head to head with your friends' families.</p>
       </div>
-      <button class="btn" onclick="goStep('stepCreate')">Create your family</button>
-      <button class="btn ghost" onclick="goStep('stepJoin')">I've got a family code</button>
+      <div class="dupe" style="background:var(--indigo-tint);border-color:rgba(76,75,158,.28);color:var(--indigo);text-align:center;">
+        Has someone in your family already set this up?<br>
+        <b>Join them instead</b> so you share one board.
+      </div>
+      <button class="btn ghost" onclick="goStep('stepJoin')">👋 Join my family</button>
+      <button class="btn" onclick="goStep('stepCreate')">Start a new family</button>
     </div>
 
 
@@ -308,6 +312,7 @@
       <label style="display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:var(--muted);margin:6px 2px 9px;">Who's competing?</label>
       <div id="kidBuild"></div>
       <button class="addkid" onclick="addKidRow()">+ Add another kid</button>
+      <div id="dupeWarn"></div>
       <button class="btn" onclick="createFamily()">Create family →</button>
       <button class="backlink" onclick="goStep('stepWelcome')">← Back</button>
     </div>
@@ -320,7 +325,10 @@
         <div class="big" id="revealCode">—</div>
         <p>Everyone in your house uses this code.</p>
       </div>
-      <button class="btn gold" onclick="copyCode(document.getElementById('revealCode').textContent)">Copy code</button>
+      <button class="btn gold" onclick="shareInvite()">📲 Invite my family</button>
+      <p style="text-align:center;font-size:12px;color:var(--muted);font-weight:600;margin:10px 2px 0;line-height:1.45;">
+        Send them the link. One tap and they're on this board, no code to type.
+      </p>
       <button class="btn" onclick="finishOnb()">Start playing →</button>
     </div>
 
@@ -436,6 +444,11 @@
     <button class="btn" onclick="saveSettings()">Save changes</button>
     <button class="btn ghost" onclick="newWeek()" style="margin-top:10px;">🏁 End week & crown champion</button>
     <button class="btn ghost" onclick="closeSettings()" style="margin-top:10px;">Close</button>
+    <button class="btn gold" onclick="shareInvite()" style="margin-top:22px;">📲 Invite my family</button>
+    <button class="btn ghost" onclick="switchFamily()" style="margin-top:10px;">👋 Join a different family</button>
+    <p style="text-align:center;font-size:11px;color:var(--muted);margin-top:8px;font-weight:600;line-height:1.45;">
+      Use this if someone else in your family already has a board. It swaps this device over, it doesn't delete anything.
+    </p>
     <button class="btn danger" onclick="resetDevice()" style="margin-top:22px;">↩️ Start fresh on this device</button>
     <p style="text-align:center;font-size:11px;color:var(--muted);margin-top:8px;font-weight:600;line-height:1.45;">
       Signs this device out of the family and returns to the start. Everyone else keeps the family.
@@ -876,12 +889,45 @@
     });
   }
 
-  window.createFamily = function(){
+  // Safety net: people were creating a second family for kids that already had one.
+  // Family names aren't unique (plenty of "The Smiths"), so match on the KIDS.
+  async function findExistingFamily(name, kids){
+    try{
+      var r = await fetch(sbBase()+"?select=id,data", { headers:sbHeaders() });
+      if(!r.ok) return null;
+      var rows = await r.json();
+      var mine = kids.map(function(k){ return k.name.trim().toLowerCase(); }).sort().join("|");
+      for(var i=0;i<rows.length;i++){
+        var d = rows[i].data || {};
+        var theirs = (d.kids||[]).map(function(k){ return (k.name||"").trim().toLowerCase(); }).sort().join("|");
+        if(theirs && theirs === mine) return { code:rows[i].id, name:d.name };
+      }
+    }catch(e){}
+    return null;
+  }
+
+  window.createFamily = async function(){
     var name = document.getElementById("famNameIn").value.trim();
     if(!name){ toast("Give your family a name first"); return; }
     var kids = buildKids.filter(function(k){ return k.name.trim(); })
       .map(function(k){ return {id:k.id, name:k.name.trim(), initial:initialOf(k.name), colour:k.colour}; });
     if(!kids.length){ toast("Add at least one kid"); return; }
+
+    // exactly these kids already on a board? almost certainly a duplicate
+    var dupe = await findExistingFamily(name, kids);
+    if(dupe && !window.__forceCreate){
+      var w = document.getElementById("dupeWarn");
+      if(w){
+        w.innerHTML = '<div class="dupe">⚠️ <b>'+esc(dupe.name||"A family")+'</b> already has these same kids.<br>'+
+          'Joining keeps everyone on one board instead of splitting your points.'+
+          '<button class="btn" style="margin-top:12px;" onclick="joinExisting(\''+dupe.code+'\')">Join '+esc(dupe.name||"that family")+'</button>'+
+          '<button class="btn ghost" style="margin-top:8px;" onclick="window.__forceCreate=true;createFamily()">No, start a separate family</button></div>';
+        w.scrollIntoView({block:"center"});
+      }
+      return;
+    }
+    window.__forceCreate = false;
+
     var code = makeCode(name);
     state = {
       onboarded:true, rev:0,
@@ -902,18 +948,17 @@
   window.joinFamily = async function(){
     var code = document.getElementById("joinCodeIn").value.trim().toUpperCase();
     if(!code){ toast("Enter a code"); return; }
-    toast("Looking up that class…");
+    toast("Looking up that family…");
     var row = await fetchClass(code);
     if(!row){ toast("No family found with that code"); return; }
     var d = row.data || {};
     state = {
       onboarded:true, rev:row.rev||0,
-      me:{ code:code, name:d.name||"Your Class", crest:d.crest||"🏡",
+      me:{ code:code, name:d.name||"Your Family", crest:d.crest||"🏡",
            kids:(d.kids&&d.kids.length)?d.kids:[], points:d.points||{},
            jobs:(d.jobs&&d.jobs.length)?d.jobs:DEFAULT_JOBS.map(function(j){return Object.assign({},j);}),
            prize:d.prize||"", allTime:d.allTime||0, week:d.weekKey||weekKey() },
-      friends: [],
-      champions:[]
+      friends: [], champions:[], hidden:[], log:[]
     };
     state.me.kids.forEach(function(k){ if(typeof state.me.points[k.id]!=="number") state.me.points[k.id]=0; });
     save();
@@ -921,6 +966,73 @@
     finishOnb();
     toast("Joined "+(d.name||"the family")+"!");
   };
+
+  // Swap this device to another family WITHOUT wiping anything. Previously the only
+  // way out was "Start fresh", and people then created a second family instead of joining.
+  window.switchFamily = function(){
+    closeSettings();
+    document.getElementById("joinCodeIn").value = "";
+    document.getElementById("onb").classList.add("show");
+    goStep("stepJoin");
+  };
+
+  // join a family we already know the code for (from the duplicate warning)
+  window.joinExisting = function(code){
+    document.getElementById("joinCodeIn").value = code;
+    goStep("stepJoin");
+    joinFamily();
+  };
+
+  // ---------- invites ----------
+  // A typed code was the whole problem: the second person couldn't be bothered and
+  // just created a second family. A link removes the typing and the choice.
+  function inviteLink(code){
+    return "https://www.famileague.co.nz/?join=" + encodeURIComponent(code || (state && state.me ? state.me.code : ""));
+  }
+  window.shareInvite = async function(){
+    var code = (state && state.me) ? state.me.code : document.getElementById("revealCode").textContent;
+    var name = (state && state.me) ? state.me.name : "our family";
+    var link = inviteLink(code);
+    var msg = "Join " + name + " on Famileague! Tap this and you'll be on our board:\n" + link;
+    if(navigator.share){
+      try{ await navigator.share({ title:"Famileague", text:msg }); return; }catch(e){ /* cancelled or unsupported */ }
+    }
+    if(navigator.clipboard){
+      navigator.clipboard.writeText(msg).then(
+        function(){ toast("Invite copied — paste it to your family"); },
+        function(){ toast(link); });
+    } else toast(link);
+  };
+  // someone opened an invite link: pull that family straight up
+  async function handleInviteLink(){
+    var p = new URLSearchParams(location.search);
+    var code = (p.get("join") || "").trim().toUpperCase();
+    if(!code) return false;
+    // already on that family? nothing to do
+    if(state && state.me && state.me.code === code){
+      history.replaceState(null, "", location.pathname);
+      return false;
+    }
+    var row = await fetchClass(code);
+    history.replaceState(null, "", location.pathname);
+    if(!row){ toast("That invite link didn't work"); return false; }
+    var d = row.data || {};
+    state = {
+      onboarded:true, rev:row.rev||0, hidden:[], friends:[], champions:[],
+      me:{ code:code, name:d.name||"Your Family", crest:d.crest||"🏡",
+           kids:(d.kids&&d.kids.length)?d.kids:[], points:d.points||{},
+           jobs:(d.jobs&&d.jobs.length)?d.jobs:DEFAULT_JOBS.map(function(j){ return Object.assign({},j); }),
+           prize:d.prize||"", allTime:d.allTime||0, week:d.weekKey||weekKey() }
+    };
+    state.me.kids.forEach(function(k){ if(typeof state.me.points[k.id]!=="number") state.me.points[k.id]=0; });
+    save();
+    document.getElementById("onb").classList.remove("show");
+    document.getElementById("app").style.display="block";
+    renderAll();
+    startSync();
+    toast("You're on " + state.me.name + "! 🎉");
+    return true;
+  }
 
   window.finishOnb = function(){
     document.getElementById("onb").classList.remove("show");
@@ -1189,7 +1301,7 @@
     if(!code){ toast("Enter their code"); return; }
     if(code===state.me.code){ toast("That's your own family 🙂"); return; }
     if((state.friends||[]).indexOf(code) !== -1){ toast("Already on your league"); return; }
-    toast("Looking up that class…");
+    toast("Looking up that family…");
     var row = await fetchClass(code);
     if(!row){ toast("No family found with that code"); return; }
     friendData[code] = row.data || {};
@@ -1414,20 +1526,19 @@
     buildNav();
     loadSession();
     await captureMagicLinkReturn();   // handles coming back from the emailed link
-    // school search box: debounced live search
-    var si = document.getElementById("schoolSearchIn");
-    if(si){
-      si.addEventListener("input", function(){
-        var q = si.value.trim();
-        if(searchTimer) clearTimeout(searchTimer);
-        if(q.length < 2){ renderSchoolResults([], ""); return; }
-        searchTimer = setTimeout(async function(){
-          var list = await searchSchools(q);
-          renderSchoolResults(list, q);
-        }, 250);
-      });
-    }
     state=load(); window.state=state;
+
+    // an invite link beats everything: it is the whole point of tapping it
+    var inviteCode = (new URLSearchParams(location.search).get("join") || "").trim().toUpperCase();
+    if(inviteCode){
+      var already = state && state.me && state.me.code === inviteCode;
+      var swapping = state && state.onboarded && !already;
+      if(!swapping || confirm("Join this family?\n\nThis device will switch from \"" + state.me.name + "\" to the family you were invited to. Nothing is deleted.")){
+        if(await handleInviteLink()) return;
+      } else {
+        history.replaceState(null, "", location.pathname);
+      }
+    }
     if(state && state.onboarded){
       // migrate older saves: friends used to be objects, now they are just codes
       if(state.friends && state.friends.length && typeof state.friends[0] === "object"){
