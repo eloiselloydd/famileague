@@ -187,6 +187,21 @@
   .bankrow .nm{font-size:14px;font-weight:800;line-height:1.2;}
   .bankrow .gl{font-size:11px;font-weight:700;color:var(--muted);margin-top:2px;}
   .bankrow .amt{font-size:17px;font-weight:800;color:var(--indigo);flex:none;font-variant-numeric:tabular-nums;}
+  /* ---------- family handle picker ---------- */
+  .tile.unpicked{opacity:.4;}
+  .tile .tick{flex:none;font-size:13px;margin-left:2px;}
+  .handlebox{display:flex;align-items:center;gap:0;border:2px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;}
+  .handlebox .at{flex:none;padding:12px 4px 12px 13px;font-size:16px;font-weight:800;color:var(--muted);}
+  .handlebox input{flex:1;min-width:0;border:none;outline:none;padding:12px 12px 12px 2px;font-family:inherit;font-size:16px;font-weight:800;letter-spacing:.06em;color:var(--indigo);background:transparent;}
+  .handlebox.ok{border-color:var(--ok);}
+  .handlebox.bad{border-color:#b0503a;}
+  .handlemsg{font-size:12px;font-weight:700;margin:8px 2px 0;line-height:1.45;min-height:16px;}
+  .handlemsg.ok{color:var(--ok);}
+  .handlemsg.bad{color:#b0503a;}
+  .handlemsg.wait{color:var(--muted);}
+  .handlesugg{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;}
+  .handlesugg button{background:var(--indigo-tint);border:none;border-radius:20px;padding:7px 13px;font-family:inherit;font-size:12px;font-weight:800;color:var(--indigo);cursor:pointer;letter-spacing:.04em;}
+  .handlesugg button:active{transform:scale(.96);}
   .modeseg{display:flex;gap:8px;margin-top:4px;}
   .modeseg button{flex:1;background:#fff;border:2px solid var(--line);border-radius:12px;padding:12px 8px;font-family:inherit;font-size:13px;font-weight:800;color:var(--muted);cursor:pointer;letter-spacing:.02em;}
   .modeseg button.on{border-color:var(--indigo);color:var(--indigo);background:var(--indigo-tint);}
@@ -339,8 +354,21 @@
       <div class="hero"><div class="big">🍎</div><h2>Name your family</h2><p id="createSub">This is what your friends will see on the league table.</p></div>
       <div class="fld">
         <label>Family name</label>
-        <input id="famNameIn" placeholder="e.g. The Lloydds" maxlength="24">
+        <input id="famNameIn" placeholder="e.g. The Lloydds" maxlength="24" oninput="onFamilyNameInput()">
       </div>
+      <div class="fld">
+        <label>Your family code</label>
+        <div class="handlebox" id="handleBox">
+          <span class="at">#</span>
+          <input id="handleIn" placeholder="THELLOYDDS" maxlength="16" autocomplete="off" autocapitalize="characters" spellcheck="false" oninput="onHandleInput()">
+        </div>
+        <div class="handlemsg" id="handleMsg"></div>
+        <div class="handlesugg" id="handleSugg"></div>
+        <p style="font-size:11px;color:var(--muted);font-weight:600;margin:9px 2px 0;line-height:1.45;">
+          This is what you give people so they can join you or add you to the league. Pick something you can say out loud.
+        </p>
+      </div>
+
       <div class="fld">
         <label>Pick your crest</label>
         <div id="crestPick" class="crestgrid"></div>
@@ -532,6 +560,23 @@
   </div>
 </div>
 
+<!-- ============ NEW CHORES OFFER SHEET ============ -->
+<div class="sheet" id="choreOfferSheet">
+  <div class="panel">
+    <h3>✨ New chores</h3>
+    <p style="font-size:13px;color:var(--muted);font-weight:600;margin:-8px 0 16px;line-height:1.45;">
+      We rebuilt the starting chore list around what families actually award day to day, mostly small daily ones. Want to add the new ones to your board?
+      <b>Nothing you've made is changed or removed.</b>
+    </p>
+    <div id="choreOfferList" style="max-height:44vh;overflow-y:auto;"></div>
+    <p style="font-size:11px;color:var(--muted);font-weight:600;margin:10px 2px 14px;line-height:1.45;">
+      Tap any you don't want. If you've already got your own version of one, leave it out.
+    </p>
+    <button class="btn" id="choreOfferBtn" onclick="acceptNewChores()">Add them to my board</button>
+    <button class="btn ghost" onclick="declineNewChores()" style="margin-top:10px;">No thanks, keep mine</button>
+  </div>
+</div>
+
 <!-- ============ PAYDAY SHEET ============ -->
 <div class="sheet" id="paydaySheet">
   <div class="panel">
@@ -602,21 +647,47 @@
   ];   // 36 = exactly 6 rows of 6 in the picker grid
   var YEARS = ["NE","Year 1","Year 2","Year 3","Year 4","Year 5","Year 6","Year 7","Year 8","Mixed"];
   var COLOURS = ["#4C4B9E","#E0A422","#C4553B","#2f7d4f","#8E4585","#2b8a9e","#B5651D","#5B6C4F"];
+  // The starting chore list. This is the product for most families: 7 of the first 9
+  // never changed it. Rebuilt 2026-09-16 from real usage rather than guesswork.
+  //
+  // The finding that drove it: in 125 awards over three days on the Lloydd Cup, the
+  // eight most-awarded chores were ALL 1-pointers and ALL daily (hang up towel 14x,
+  // brush teeth 13x, take plate up 13x, pack lunchbox 13x...). They were 76% of all
+  // activity, and only ONE of them was in the old default list. The old list was
+  // weekly events, so it gave a parent a reason to open the app on Sunday and nothing
+  // to do on a Tuesday.
+  //
+  // Ids are stable and deliberately reused where the chore is unchanged (j1, j2, j4,
+  // j5, j6, j10, n1-n3), so an existing family matches on id and never gets a duplicate.
   var DEFAULT_JOBS = [
-    {id:"j1",label:"Made your bed",emoji:"🛏️",pts:1},
-    {id:"j2",label:"Tidied room",emoji:"🧸",pts:2},
-    {id:"j3",label:"Helped with dishes",emoji:"🍽️",pts:2},
-    {id:"j4",label:"Homework done",emoji:"📚",pts:3},
-    {id:"j5",label:"Fed the pet",emoji:"🐾",pts:1},
-    {id:"j6",label:"Kind to a sibling",emoji:"💛",pts:2},
-    {id:"j7",label:"Took out rubbish",emoji:"🗑️",pts:2},
-    {id:"j8",label:"Ready on time",emoji:"⏰",pts:2},
-    {id:"j9",label:"No screen fuss",emoji:"📵",pts:2},
-    {id:"j10",label:"Went the extra mile",emoji:"⭐",pts:3},
-    {id:"n1",label:"Didn't listen",emoji:"🙉",pts:-1},
-    {id:"n2",label:"Unkind to a sibling",emoji:"💔",pts:-1},
-    {id:"n3",label:"Left a big mess",emoji:"🌪️",pts:-1},
-    {id:"n4",label:"Rude or backchat",emoji:"😤",pts:-1}
+    // Morning
+    {id:"j1", label:"Made your bed",        emoji:"🛏️", pts:1},
+    {id:"j11",label:"Dressed on time",      emoji:"👕", pts:1},
+    {id:"j12",label:"Brushed your teeth",   emoji:"🪥", pts:1},
+    {id:"j13",label:"Packed your lunchbox", emoji:"🥪", pts:1},
+    {id:"j14",label:"Finished your breakfast",emoji:"🍳",pts:1},
+    // After school and evening
+    {id:"j15",label:"Emptied your school bag",emoji:"🎒",pts:1},
+    {id:"j16",label:"Ate your vegetables",  emoji:"🥦", pts:1},
+    {id:"j17",label:"Took your plate up",   emoji:"🍽️", pts:1},
+    {id:"j18",label:"Hung up your towel",   emoji:"🚿", pts:1},
+    {id:"j19",label:"Clothes in the wash",  emoji:"🧺", pts:1},
+    {id:"j20",label:"Straight to bed at bedtime",emoji:"😴",pts:2},
+    // Helping out
+    {id:"j21",label:"Unloaded the dishwasher",emoji:"🧽",pts:2},
+    {id:"j22",label:"Set the table",        emoji:"🍴", pts:2},
+    {id:"j5", label:"Fed the pet",          emoji:"🐾", pts:1},
+    {id:"j2", label:"Tidied your room",     emoji:"🧸", pts:2},
+    {id:"j6", label:"Kind to a sibling",    emoji:"💛", pts:2},
+    // Big ones
+    {id:"j4", label:"Homework done",        emoji:"📚", pts:3},
+    {id:"j23",label:"Slept in your own bed all night",emoji:"🌙",pts:3},
+    {id:"j10",label:"Went the extra mile",  emoji:"⭐", pts:3},
+    // Losing points
+    {id:"n1", label:"Didn't listen",        emoji:"🙉", pts:-1},
+    {id:"n2", label:"Unkind to a sibling",  emoji:"💔", pts:-1},
+    {id:"n3", label:"Left a big mess",      emoji:"🌪️", pts:-1},
+    {id:"n5", label:"Wouldn't give up a device",emoji:"📱",pts:-1}
   ];
   var DEFAULT_RATE = 10;   // cents per point in MONEY mode: 1 point = 10c
   var STORE_KEY = "famileague_v1";
@@ -811,7 +882,7 @@
              kids:me.kids, points:me.points, jobs:me.jobs, prize:me.prize,
              allTime:me.allTime||0, weekKey:me.week,
              mode:me.mode||"points", rate:me.rate||DEFAULT_RATE, bank:me.bank||{}, goals:me.goals||{}, payday:me.payday||null,
-             ranked:me.ranked !== false };
+             ranked:me.ranked !== false, choresOfferV2:me.choresOfferV2 === true };
   }
   function schedulePush(){
     if(!sync.on || sync.applying || !state || !state.me) return;
@@ -881,6 +952,7 @@
     if(d.goals) me.goals = d.goals;
     if(d.payday !== undefined) me.payday = d.payday;
     if(typeof d.ranked === "boolean") me.ranked = d.ranked;
+    if(d.choresOfferV2 === true) me.choresOfferV2 = true;
     if(d.weekKey) me.week = d.weekKey;
     if(selected && !me.kids.some(function(k){return k.id===selected;})) selected = null;
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -899,11 +971,107 @@
   // ---------- helpers ----------
   function uid(p){ return (p||"x")+Math.random().toString(36).slice(2,7); }
   function initialOf(n){ return (n||"?").trim().charAt(0).toUpperCase() || "?"; }
-  function makeCode(name){
-    var base = (name||"HOME").replace(/[^A-Za-z]/g,"").toUpperCase().slice(0,4) || "HOME";
-    while(base.length<4) base += "X";
-    return base + "-" + Math.floor(1000+Math.random()*9000);
+  // ---------- family handle ----------
+  // Families used to get an auto-generated THEL-2284. Nobody can say that out loud,
+  // it has to be read off a screen character by character, and 0/O and 1/I get
+  // mistyped — which is a fair suspect for why NOT ONE league link was ever created.
+  // Now they choose it. That also forces the uniqueness check the old code never had:
+  // makeCode() picked 4 random digits and never asked the server, so two families
+  // colliding would have silently overwritten each other's board (the sync upserts on id).
+  var HANDLE_MIN = 3, HANDLE_MAX = 16;
+  var HANDLE_RESERVED = ["ADMIN","TEST","HELP","SUPPORT","FAMILEAGUE","LOGIN","SIGNUP","NEW","DEMO","NULL","UNDEFINED"];
+
+  // what someone TYPES when joining. Keeps hyphens so the old THEL-2284 codes still
+  // work, but forgives the "#" we now show them and any stray spaces.
+  function normCode(v){
+    return String(v||"").trim().toUpperCase().replace(/^#+/,"").replace(/\s+/g,"");
   }
+  function cleanHandle(v){
+    return String(v||"").toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,HANDLE_MAX);
+  }
+  function suggestHandle(name){
+    var base = cleanHandle(name);
+    if(base.length < HANDLE_MIN) base = "FAMILY";
+    return base.slice(0,HANDLE_MAX);
+  }
+  function handleProblem(h){
+    if(h.length < HANDLE_MIN) return "A bit short, use at least "+HANDLE_MIN+" letters.";
+    if(HANDLE_RESERVED.indexOf(h) > -1) return "That one's reserved, pick another.";
+    if(/^[0-9]+$/.test(h)) return "Numbers only is hard to remember, add some letters.";
+    return null;
+  }
+  // asks the server whether the code is free. Returns true = free.
+  async function handleIsFree(h){
+    try{
+      var r = await fetch(sbBase()+"?id=eq."+encodeURIComponent(h)+"&select=id", { headers:sbHeaders() });
+      if(!r.ok) return null;                 // can't tell; don't claim it's free
+      var rows = await r.json();
+      return rows.length === 0;
+    }catch(e){ return null; }
+  }
+  function altHandles(h){
+    var out=[], base=h.slice(0, HANDLE_MAX-2);
+    // don't offer THESMITHS -> THESMITHSS; the plural suffix only helps a singular name
+    var sfx = (h.charAt(h.length-1)==="S") ? ["NZ","HQ","1"] : ["S","NZ","HQ"];
+    sfx.forEach(function(x){
+      var c=(base+x).slice(0,HANDLE_MAX);
+      if(c!==h && out.indexOf(c)===-1) out.push(c);
+    });
+    out.push((h.slice(0,HANDLE_MAX-2)+Math.floor(10+Math.random()*89)).slice(0,HANDLE_MAX));
+    return out.slice(0,4);
+  }
+
+  var handleState = { value:"", ok:false, touched:false, timer:null, seq:0 };
+
+  function setHandleMsg(cls, text){
+    var m=document.getElementById("handleMsg"), b=document.getElementById("handleBox");
+    if(!m) return;
+    m.className = "handlemsg " + (cls||"");
+    m.textContent = text || "";
+    if(b) b.className = "handlebox" + (cls==="ok" ? " ok" : (cls==="bad" ? " bad" : ""));
+  }
+  function drawHandleSuggestions(list){
+    var box=document.getElementById("handleSugg"); if(!box) return;
+    box.innerHTML="";
+    (list||[]).forEach(function(c){
+      var b=document.createElement("button");
+      b.type="button"; b.textContent="#"+c;
+      b.onclick=function(){ var i=document.getElementById("handleIn"); i.value=c; handleState.touched=true; checkHandle(); };
+      box.appendChild(b);
+    });
+  }
+
+  function checkHandle(){
+    var inp=document.getElementById("handleIn"); if(!inp) return;
+    var h=cleanHandle(inp.value);
+    if(inp.value !== h) inp.value = h;
+    handleState.value=h; handleState.ok=false;
+    drawHandleSuggestions([]);
+    // bump the sequence FIRST, before any early return. Otherwise a check already in
+    // flight lands afterwards and stomps the validation message — delete a couple of
+    // characters quickly and "A bit short" gets overwritten by a stale "is free 🎉".
+    var seq = ++handleState.seq;
+    if(handleState.timer) clearTimeout(handleState.timer);
+    if(!h){ setHandleMsg("", ""); return; }
+    var problem=handleProblem(h);
+    if(problem){ setHandleMsg("bad", problem); return; }
+    setHandleMsg("wait", "Checking…");
+    handleState.timer=setTimeout(async function(){
+      var free = await handleIsFree(h);
+      if(seq !== handleState.seq) return;            // a newer keystroke won
+      if(free === null){ setHandleMsg("wait","Couldn't check just now, we'll confirm when you create."); handleState.ok=true; return; }
+      if(free){ handleState.ok=true; setHandleMsg("ok","#"+h+" is free 🎉"); }
+      else { handleState.ok=false; setHandleMsg("bad","#"+h+" is taken. Try one of these:"); drawHandleSuggestions(altHandles(h)); }
+    }, 350);
+  }
+  window.onHandleInput = function(){ handleState.touched = true; checkHandle(); };
+  // while they haven't touched it, the handle tracks the family name
+  window.onFamilyNameInput = function(){
+    if(handleState.touched) return;
+    var inp=document.getElementById("handleIn"); if(!inp) return;
+    inp.value = suggestHandle(document.getElementById("famNameIn").value);
+    checkHandle();
+  };
   // ---------- MONEY MODE helpers ----------
   // A family is either in POINTS mode (a race: weekly reset, positions, a champion)
   // or MONEY mode (a job: earnings bank up, no positions, paid out on a payday).
@@ -975,6 +1143,26 @@
     return Math.round((d-t)/86400000);
   }
 
+  // ---------- new-chores offer (one time, for families created before 2026-09-16) ----------
+  // Additive ONLY. A family that added six of their own chores must never lose them,
+  // so this compares and appends; it never replaces. ("Use the standard list" in
+  // Settings is the deliberate, confirmed way to actually replace.)
+  function normLabel(s){ return String(s||"").toLowerCase().replace(/[^a-z]/g,""); }
+  function missingDefaults(fam){
+    fam = fam || state.me;
+    var have = {}, labels = [];
+    (fam.jobs||[]).forEach(function(j){ have[j.id]=1; labels.push(normLabel(j.label)); });
+    return DEFAULT_JOBS.filter(function(j){
+      if(have[j.id]) return false;
+      var n = normLabel(j.label);
+      // substring either way, so "Straight to bed at bedtime" does not get offered to a
+      // family who already wrote "Going straight to bed at bedtime"
+      return !labels.some(function(l){
+        return l === n || (l.length > 6 && n.length > 6 && (l.indexOf(n) > -1 || n.indexOf(l) > -1));
+      });
+    });
+  }
+
   function weekTotalOf(fam){ var t=0; fam.kids.forEach(function(k){ t+=fam.points[k.id]||0; }); return t; }
   function toast(msg){ var t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(function(){t.classList.remove("show");},1800); }
 
@@ -991,6 +1179,9 @@
     });
     if(id==="stepCreate"){
       if(!buildKids.length){ addKidRow(); addKidRow(); }
+      handleState = { value:"", ok:false, touched:false, timer:null, seq:0 };
+      var hi=document.getElementById("handleIn");
+      if(hi){ hi.value = suggestHandle(document.getElementById("famNameIn").value); checkHandle(); }
       renderCrestPick();
       renderYearPick();
       // then refresh once we know which crests this school has already used
@@ -1112,13 +1303,37 @@
     }
     window.__forceCreate = false;
 
-    var code = makeCode(name);
+    // the handle they chose, re-checked against the server right now.
+    // The old makeCode() never asked, so a collision would have silently
+    // overwritten another family's board (the sync upserts on this id).
+    var code = cleanHandle(document.getElementById("handleIn").value) || suggestHandle(name);
+    var problem = handleProblem(code);
+    if(problem){
+      document.getElementById("handleIn").scrollIntoView({block:"center"});
+      setHandleMsg("bad", problem);
+      toast("Check your family code");
+      return;
+    }
+    var free = await handleIsFree(code);
+    if(free === false){
+      document.getElementById("handleIn").scrollIntoView({block:"center"});
+      setHandleMsg("bad", "#"+code+" was just taken. Try one of these:");
+      drawHandleSuggestions(altHandles(code));
+      toast("That code is taken");
+      return;
+    }
+    if(free === null){
+      // couldn't reach the server. Refusing would strand them offline, so fall back
+      // to a suffix that is very unlikely to collide rather than risk overwriting.
+      code = (code.slice(0, HANDLE_MAX-4) + Math.floor(1000+Math.random()*9000)).slice(0,HANDLE_MAX);
+    }
+
     state = {
       onboarded:true, rev:0,
       me:{ code:code, name:name, crest:pickedCrest, kids:kids, points:{}, jobs:DEFAULT_JOBS.map(function(j){return Object.assign({},j);}),
            prize:"", allTime:0, week:weekKey(),
            mode:"points", rate:DEFAULT_RATE, bank:{}, goals:{}, payday:null,
-           ranked:(kids.length > 1) },
+           ranked:(kids.length > 1), choresOfferV2:true },
       friends: [],          // extra classes added by code (outside your school)
       champions:[]
     };
@@ -1132,7 +1347,7 @@
 
   // join an EXISTING class by its code (real lookup)
   window.joinFamily = async function(){
-    var code = document.getElementById("joinCodeIn").value.trim().toUpperCase();
+    var code = normCode(document.getElementById("joinCodeIn").value);
     if(!code){ toast("Enter a code"); return; }
     toast("Looking up that family…");
     var row = await fetchClass(code);
@@ -1611,7 +1826,7 @@
 
   // add another REAL class by its code
   window.addFriend = async function(){
-    var code=document.getElementById("friendCodeIn").value.trim().toUpperCase();
+    var code=normCode(document.getElementById("friendCodeIn").value);
     if(!code){ toast("Enter their code"); return; }
     if(code===state.me.code){ toast("That's your own family 🙂"); return; }
     if((state.friends||[]).indexOf(code) !== -1){ toast("Already on your league"); return; }
@@ -1973,6 +2188,57 @@
   };
 
   // ================= payday picker =================
+  window.maybeOfferNewChores = function(){
+    if(!state || !state.me || state.me.choresOfferV2 === true) return;
+    var missing = missingDefaults(state.me);
+    if(!missing.length){ state.me.choresOfferV2 = true; save(); return; }
+    // every one starts ticked; tap to drop the ones you already have your own version of.
+    // The Davidsons wrote "Three vegetables with dinner" — no matcher is going to know
+    // that is the same thing as "Ate your vegetables", so let them decide.
+    choreOfferPick = {};
+    missing.forEach(function(j){ choreOfferPick[j.id] = true; });
+    var box=document.getElementById("choreOfferList"); box.innerHTML="";
+    missing.forEach(function(j){
+      var t=document.createElement("button"); t.className="tile"; t.type="button";
+      t.innerHTML='<span class="em">'+j.emoji+'</span><span class="cn">'+esc(j.label)+'</span>'+
+                  '<span class="pt'+(j.pts<0?" neg":"")+'">'+(j.pts>0?"+":"")+j.pts+'</span>'+
+                  '<span class="tick">✓</span>';
+      t.onclick=function(){
+        choreOfferPick[j.id] = !choreOfferPick[j.id];
+        t.classList.toggle("unpicked", !choreOfferPick[j.id]);
+        t.querySelector(".tick").textContent = choreOfferPick[j.id] ? "✓" : "";
+        drawOfferCount();
+      };
+      box.appendChild(t);
+    });
+    drawOfferCount();
+    document.getElementById("choreOfferSheet").classList.add("show");
+  };
+  var choreOfferPick = {};
+  function offerPicked(){
+    return missingDefaults(state.me).filter(function(j){ return choreOfferPick[j.id]; });
+  }
+  function drawOfferCount(){
+    var b=document.getElementById("choreOfferBtn"); if(!b) return;
+    var n=offerPicked().length;
+    b.textContent = n ? ("Add "+n+" chore"+(n===1?"":"s")+" to my board") : "Add nothing";
+    b.disabled = false;
+  }
+  window.acceptNewChores = function(){
+    var picked = offerPicked();
+    // append only, so custom chores and edited defaults all survive untouched
+    state.me.jobs = (state.me.jobs||[]).concat(picked.map(function(j){ return Object.assign({},j); }));
+    state.me.choresOfferV2 = true;
+    save(); renderAll();
+    document.getElementById("choreOfferSheet").classList.remove("show");
+    toast(picked.length ? ("Added "+picked.length+" new chores") : "Nothing added");
+  };
+  window.declineNewChores = function(){
+    state.me.choresOfferV2 = true;
+    save();
+    document.getElementById("choreOfferSheet").classList.remove("show");
+  };
+
   window.editPayday = function(){
     var pd=state.me.payday||{};
     paydayScratch = { freq: pd.freq||"week", date: pd.date||nextFridayISO() };
@@ -2071,6 +2337,7 @@
       document.getElementById("app").style.display="block";
       renderAll();
       startSync();
+      setTimeout(maybeOfferNewChores, 700);   // let the board paint first
       // if signed in, make sure this class is linked to the account
       if(session && session.user){
         claimClassForUser();
