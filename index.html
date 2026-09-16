@@ -77,6 +77,10 @@
   .kid .pts{font-size:34px;font-weight:800;line-height:1;color:var(--c,#4C4B9E);flex:none;font-variant-numeric:tabular-nums;min-width:52px;text-align:right;}
   .kid .pts.pop{animation:pop .45s cubic-bezier(.2,.9,.3,1.4);}
   .kid .pl{font-size:20px;flex:none;width:24px;text-align:center;line-height:1;}
+  /* An element with a display rule ignores the hidden attribute, so every
+     hidden={true} in the JS silently did nothing. This makes hidden mean hidden.
+     (Fixes the "Full leaderboard" button showing for families with 3 kids or fewer.) */
+  [hidden]{display:none !important;}
   .fullbtn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;background:var(--card);border:2px dashed rgba(76,75,158,.3);border-radius:14px;padding:13px;font-size:13px;font-weight:800;color:var(--indigo);cursor:pointer;margin-top:2px;font-family:inherit;}
   .fullbtn:active{transform:scale(.98);}
   .lbrow{display:flex;align-items:center;gap:12px;background:var(--card);border:2px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px;}
@@ -162,6 +166,38 @@
   .histrow .hx{flex:none;background:none;border:none;font-size:15px;cursor:pointer;opacity:.5;padding:2px 4px;font-family:inherit;}
   .histrow .hx:active{opacity:1;}
   .hist-empty{font-size:13px;color:var(--muted);font-weight:600;text-align:center;padding:16px;}
+
+  /* ---------- MONEY MODE ---------- */
+  .kid .sub{font-size:11px;font-weight:700;color:var(--muted);margin-top:4px;letter-spacing:.01em;}
+  .kid .sub b{color:var(--indigo);}
+  .kid .bar.goal span{background:var(--gold);}
+  .payday{background:var(--card);border:2px solid var(--line);box-shadow:var(--shadow);border-radius:18px;padding:15px 17px;margin-top:18px;}
+  .payday .h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px;}
+  .payday .l{font-size:10px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--muted);}
+  .payday .edit{background:none;border:none;font-size:11px;font-weight:800;color:var(--indigo);cursor:pointer;font-family:inherit;letter-spacing:.04em;}
+  .payday .when{font-size:17px;font-weight:800;color:var(--ink);letter-spacing:.01em;}
+  .payday .when.empty{color:var(--muted);font-weight:700;font-size:14px;}
+  .payday .owed{font-size:12px;font-weight:700;color:var(--muted);margin-top:4px;}
+  .payday.due{border-color:var(--gold);background:#fffaf0;}
+  .paybtn{display:block;width:100%;background:var(--gold);border:none;border-radius:14px;padding:14px;font-size:14px;font-weight:800;color:#3a2a06;cursor:pointer;font-family:inherit;margin-top:12px;letter-spacing:.02em;}
+  .paybtn:active{transform:scale(.98);}
+  .bankrow{display:flex;align-items:center;gap:12px;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:9px;}
+  .bankrow .av{width:34px;height:34px;border-radius:11px;background:var(--c,#4C4B9E);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:none;}
+  .bankrow .mid{flex:1;min-width:0;}
+  .bankrow .nm{font-size:14px;font-weight:800;line-height:1.2;}
+  .bankrow .gl{font-size:11px;font-weight:700;color:var(--muted);margin-top:2px;}
+  .bankrow .amt{font-size:17px;font-weight:800;color:var(--indigo);flex:none;font-variant-numeric:tabular-nums;}
+  .modeseg{display:flex;gap:8px;margin-top:4px;}
+  .modeseg button{flex:1;background:#fff;border:2px solid var(--line);border-radius:12px;padding:12px 8px;font-family:inherit;font-size:13px;font-weight:800;color:var(--muted);cursor:pointer;letter-spacing:.02em;}
+  .modeseg button.on{border-color:var(--indigo);color:var(--indigo);background:var(--indigo-tint);}
+  .modehint{font-size:11px;color:var(--muted);font-weight:600;line-height:1.45;margin-top:9px;}
+  .ratebox{display:flex;align-items:center;gap:9px;margin-top:10px;}
+  .ratebox .pre{font-size:13px;font-weight:800;color:var(--muted);flex:none;}
+  .ratebox input{width:78px;border:2px solid var(--line);border-radius:10px;padding:10px;font-family:inherit;font-size:15px;font-weight:800;color:var(--ink);background:#fff;text-align:center;}
+  .goalrow{display:flex;gap:8px;align-items:center;margin-bottom:8px;}
+  .goalrow .gn{flex:none;width:62px;font-size:12px;font-weight:800;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .goalrow input.gl{flex:1;min-width:0;border:2px solid var(--line);border-radius:10px;padding:9px;font-family:inherit;font-size:13px;font-weight:700;color:var(--ink);background:#fff;}
+  .goalrow input.gt{flex:none;width:72px;border:2px solid var(--line);border-radius:10px;padding:9px;font-family:inherit;font-size:13px;font-weight:800;color:var(--ink);background:#fff;text-align:center;}
 
   /* fly-up point */
   .fly{position:fixed;z-index:60;font-weight:800;font-size:22px;color:var(--gold);pointer-events:none;animation:fly 1s ease-out forwards;}
@@ -378,18 +414,25 @@
       <div class="txt empty" id="prizeTxt">Tap edit to set the prize…</div>
     </div>
 
-    <div class="seclbl"><span class="txt">Award points</span><span class="rule"></span></div>
+    <div class="payday" id="paydayBox" hidden>
+      <div class="h"><span class="l">💰 Payday</span><button class="edit" onclick="editPayday()">Edit</button></div>
+      <div class="when empty" id="paydayWhen">Tap edit to set a payday…</div>
+      <div class="owed" id="paydayOwed"></div>
+      <button class="paybtn" id="payBtn" hidden onclick="openPayout()">💸 Pay out now</button>
+    </div>
+
+    <div class="seclbl"><span class="txt" id="awardLbl">Award points</span><span class="rule"></span></div>
     <div class="pick" id="picker"></div>
     <div class="hint" id="pickHint">Pick a kid, then tap a chore.</div>
     <div class="grid" id="chores"></div>
 
-    <div class="seclbl" id="loseLbl" hidden><span class="txt">Lose points</span><span class="rule"></span><span class="val neg">docked</span></div>
+    <div class="seclbl" id="loseLbl" hidden><span class="txt" id="loseTxt">Lose points</span><span class="rule"></span><span class="val neg">docked</span></div>
     <div class="grid" id="choresNeg" hidden></div>
 
     <button class="undobtn" id="undoBtn" onclick="undoLast()" disabled>↩︎ Undo last</button>
 
     <div class="champs">
-      <div class="seclbl"><span class="txt">Past winners</span><span class="rule"></span></div>
+      <div class="seclbl"><span class="txt" id="champLbl">Past winners</span><span class="rule"></span></div>
       <div class="champrow" id="champs"></div>
     </div>
   </div>
@@ -435,6 +478,29 @@
     </div>
 
     <div class="setrow">
+      <div class="lab">How this family plays</div>
+      <div class="modeseg">
+        <button id="modeBtn_points" onclick="setMode('points')">🏆 Points</button>
+        <button id="modeBtn_money" onclick="setMode('money')">💰 Pocket money</button>
+      </div>
+      <div class="modehint" id="modeHint"></div>
+      <div id="rateWrap" hidden>
+        <div class="ratebox">
+          <span class="pre">1 point =</span>
+          <input id="rateIn" type="number" inputmode="numeric" min="1" max="1000" step="1">
+          <span class="pre">cents</span>
+        </div>
+        <div class="modehint" id="rateEg"></div>
+      </div>
+    </div>
+
+    <div class="setrow" id="goalsRow" hidden>
+      <div class="lab">Savings goals</div>
+      <div id="setGoals"></div>
+      <div class="modehint">What each kid is saving for, and what it costs. Leave blank for no goal.</div>
+    </div>
+
+    <div class="setrow">
       <div class="lab">Chores & points</div>
       <div id="setJobs"></div>
       <button class="addmini" onclick="setAddJob()">+ Add chore</button>
@@ -442,7 +508,7 @@
     </div>
 
     <button class="btn" onclick="saveSettings()">Save changes</button>
-    <button class="btn ghost" onclick="newWeek()" style="margin-top:10px;">🏁 End week & crown champion</button>
+    <button class="btn ghost" id="newWeekBtn" onclick="newWeek()" style="margin-top:10px;">🏁 End week & crown champion</button>
     <button class="btn ghost" onclick="closeSettings()" style="margin-top:10px;">Close</button>
     <button class="btn gold" onclick="shareInvite()" style="margin-top:22px;">📲 Invite my family</button>
     <button class="btn ghost" onclick="switchFamily()" style="margin-top:10px;">👋 Join a different family</button>
@@ -454,6 +520,31 @@
       Signs this device out of the family and returns to the start. Everyone else keeps the family.
     </p>
     <p style="text-align:center;font-size:11px;color:var(--muted);margin-top:16px;font-weight:600;">Famileague · prototype</p>
+  </div>
+</div>
+
+<!-- ============ PAYDAY SHEET ============ -->
+<div class="sheet" id="paydaySheet">
+  <div class="panel">
+    <h3>💰 Payday</h3>
+    <p style="font-size:13px;color:var(--muted);font-weight:600;margin:-8px 0 16px;line-height:1.45;">
+      Pick the next payday and how often it comes round. Nothing is ever paid automatically — you confirm each payout yourself.
+    </p>
+    <div class="setrow">
+      <div class="lab">Next payday</div>
+      <input id="pdDate" type="date" style="width:100%;border:2px solid var(--line);border-radius:10px;padding:12px;font-size:15px;font-family:inherit;font-weight:700;color:var(--ink);background:#fff;">
+    </div>
+    <div class="setrow">
+      <div class="lab">Repeats</div>
+      <div class="modeseg">
+        <button id="pdFreq_week" onclick="setPaydayFreq('week')">Weekly</button>
+        <button id="pdFreq_fortnight" onclick="setPaydayFreq('fortnight')">Fortnightly</button>
+        <button id="pdFreq_month" onclick="setPaydayFreq('month')">Monthly</button>
+      </div>
+    </div>
+    <button class="btn" onclick="savePayday()">Save payday</button>
+    <button class="btn ghost" onclick="clearPayday()" style="margin-top:10px;">Remove payday</button>
+    <button class="btn ghost" onclick="closePayday()" style="margin-top:10px;">Cancel</button>
   </div>
 </div>
 
@@ -518,10 +609,15 @@
     {id:"n3",label:"Left a big mess",emoji:"🌪️",pts:-1},
     {id:"n4",label:"Rude or backchat",emoji:"😤",pts:-1}
   ];
+  var DEFAULT_RATE = 10;   // cents per point in MONEY mode: 1 point = 10c
   var STORE_KEY = "famileague_v1";
   var state = null;
   var selected = null;
   var buildKids = [];        // onboarding scratch
+  // Left over from Class Rivals, where a class belonged to a school. Famileague has
+  // no schools, but goStep() still reads it — and undeclared it threw a ReferenceError
+  // on every single "Create your family", killing the rest of that function.
+  var pendingSchool = null;
   var pickedCrest = "🏡";
   window.state = null;
 
@@ -704,7 +800,8 @@
     var me = state.me;
     return { name:me.name, crest:me.crest, year:me.year||"", week:weekTotalOf(me), total:me.allTime||0,
              kids:me.kids, points:me.points, jobs:me.jobs, prize:me.prize,
-             allTime:me.allTime||0, weekKey:me.week };
+             allTime:me.allTime||0, weekKey:me.week,
+             mode:me.mode||"points", rate:me.rate||DEFAULT_RATE, bank:me.bank||{}, goals:me.goals||{}, payday:me.payday||null };
   }
   function schedulePush(){
     if(!sync.on || sync.applying || !state || !state.me) return;
@@ -768,6 +865,11 @@
     if(d.jobs && d.jobs.length) me.jobs = d.jobs;
     if(d.prize !== undefined) me.prize = d.prize;
     if(d.allTime !== undefined) me.allTime = d.allTime;
+    if(d.mode) me.mode = d.mode;
+    if(typeof d.rate === "number" && d.rate > 0) me.rate = d.rate;
+    if(d.bank) me.bank = d.bank;
+    if(d.goals) me.goals = d.goals;
+    if(d.payday !== undefined) me.payday = d.payday;
     if(d.weekKey) me.week = d.weekKey;
     if(selected && !me.kids.some(function(k){return k.id===selected;})) selected = null;
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -791,6 +893,68 @@
     while(base.length<4) base += "X";
     return base + "-" + Math.floor(1000+Math.random()*9000);
   }
+  // ---------- MONEY MODE helpers ----------
+  // A family is either in POINTS mode (a race: weekly reset, positions, a champion)
+  // or MONEY mode (a job: earnings bank up, no positions, paid out on a payday).
+  // One conversion rate drives money mode, so every existing chore has a price
+  // the moment you switch and nothing needs re-entering.
+  function isMoney(fam){ return (fam||state.me).mode === "money"; }
+  function rateOf(fam){ var r=(fam||state.me).rate; return (typeof r==="number" && r>0) ? r : DEFAULT_RATE; }
+  function centsOf(pts, fam){ return Math.round(pts * rateOf(fam)); }
+  function money(cents){
+    var n=Math.round(cents||0), neg=n<0; n=Math.abs(n);
+    return (neg?"-$":"$") + (n/100).toFixed(2);
+  }
+  // what a kid has banked but not yet been paid
+  function bankOf(fam, kidId){ fam=fam||state.me; return (fam.bank && fam.bank[kidId]) || 0; }
+  function bankTotal(fam){ fam=fam||state.me; var t=0; (fam.kids||[]).forEach(function(k){ t+=bankOf(fam,k.id); }); return t; }
+  function goalOf(fam, kidId){ fam=fam||state.me; return (fam.goals && fam.goals[kidId]) || null; }
+  // display value for a point figure, in whichever mode the family is in
+  function val(pts, fam){ return isMoney(fam) ? money(centsOf(pts, fam)) : (pts + (Math.abs(pts)===1?" pt":" pts")); }
+  function signedVal(pts, fam){
+    if(!isMoney(fam)) return (pts>0?"+":"")+pts;
+    // a deduction tile must read "-$0.20", not a bare "$0.20"
+    return (pts>0?"+":"") + money(centsOf(pts, fam));
+  }
+
+  // ---------- payday ----------
+  function todayISO(){ var d=new Date(); return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate()); }
+  function pad2(n){ return (n<10?"0":"")+n; }
+  function advancePayday(iso, freq){
+    var p=iso.split("-"), y=+p[0], m=+p[1]-1, day=+p[2];
+    if(freq==="month"){
+      // a payday on the 31st must land on the 28th in February, not skid into March.
+      // plain setMonth() overflows, so clamp to the last day of the target month.
+      var tm=m+1, ty=y;
+      if(tm>11){ tm=0; ty++; }
+      var lastDay=new Date(ty, tm+1, 0).getDate();
+      var d=new Date(ty, tm, Math.min(day, lastDay));
+      return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
+    }
+    var d2=new Date(y, m, day);
+    d2.setDate(d2.getDate() + (freq==="fortnight" ? 14 : 7));
+    return d2.getFullYear()+"-"+pad2(d2.getMonth()+1)+"-"+pad2(d2.getDate());
+  }
+  function paydayDue(fam){
+    fam=fam||state.me;
+    var pd=fam.payday;
+    if(!pd || !pd.date) return false;
+    return pd.date <= todayISO() && bankTotal(fam) > 0;
+  }
+  function prettyDate(iso){
+    if(!iso) return "";
+    var p=iso.split("-"), d=new Date(+p[0], +p[1]-1, +p[2]);
+    var days=["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    var mons=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return days[d.getDay()]+" "+d.getDate()+" "+mons[d.getMonth()];
+  }
+  function daysUntil(iso){
+    if(!iso) return null;
+    var p=iso.split("-"), d=new Date(+p[0], +p[1]-1, +p[2]);
+    var t=new Date(); t.setHours(0,0,0,0); d.setHours(0,0,0,0);
+    return Math.round((d-t)/86400000);
+  }
+
   function weekTotalOf(fam){ var t=0; fam.kids.forEach(function(k){ t+=fam.points[k.id]||0; }); return t; }
   function toast(msg){ var t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(function(){t.classList.remove("show");},1800); }
 
@@ -932,7 +1096,8 @@
     state = {
       onboarded:true, rev:0,
       me:{ code:code, name:name, crest:pickedCrest, kids:kids, points:{}, jobs:DEFAULT_JOBS.map(function(j){return Object.assign({},j);}),
-           prize:"", allTime:0, week:weekKey() },
+           prize:"", allTime:0, week:weekKey(),
+           mode:"points", rate:DEFAULT_RATE, bank:{}, goals:{}, payday:null },
       friends: [],          // extra classes added by code (outside your school)
       champions:[]
     };
@@ -1055,6 +1220,7 @@
   }
 
   function renderBoard(){
+    if(isMoney(state.me)) return renderBoardMoney();
     var me=state.me, box=document.getElementById("board"); box.innerHTML="";
     var sorted=me.kids.slice().sort(function(a,b){ return (me.points[b.id]||0)-(me.points[a.id]||0); });
     var max=Math.max.apply(null,me.kids.map(function(k){return me.points[k.id]||0;}).concat([1]));
@@ -1083,10 +1249,77 @@
     document.getElementById("weekTotal").textContent=weekTotalOf(me)+" pts";
   }
 
+  // MONEY MODE board: no medals, no sorting, nobody is 1st or 3rd.
+  // Every kid is running their own race against their own savings goal,
+  // which is what makes this work for an only child or a big age gap.
+  function renderBoardMoney(){
+    var me=state.me, box=document.getElementById("board"); box.innerHTML="";
+    var btn=document.getElementById("fullBtn"); if(btn) btn.hidden=true;
+    me.kids.forEach(function(k){
+      var p=me.points[k.id]||0;                 // points earned this week
+      var wk=centsOf(p, me);                    // ...in money
+      var bank=bankOf(me,k.id);
+      var goal=goalOf(me,k.id);
+      var el=document.createElement("div");
+      el.className="kid";
+      el.style.setProperty("--c",k.colour);
+      var mid='<div class="nm">'+esc(k.name)+'<span class="book">📖</span></div>';
+      if(goal && goal.target>0){
+        var pct=Math.max(0,Math.min(100,Math.round((bank/goal.target)*100)));
+        mid+='<div class="bar goal"><span style="width:'+pct+'%"></span></div>'+
+             '<div class="sub">🐷 <b>'+money(bank)+'</b> of '+money(goal.target)+
+             (goal.label?' · '+esc(goal.label):'')+'</div>';
+      } else {
+        mid+='<div class="sub">🐷 <b>'+money(bank)+'</b> saved</div>';
+      }
+      el.innerHTML='<div class="av">'+k.initial+'</div>'+
+        '<div class="mid">'+mid+'</div>'+
+        '<div class="pts" data-k="'+k.id+'">'+money(wk)+'</div>';
+      el.onclick=function(){ openHistory(k.id); };
+      box.appendChild(el);
+    });
+    document.getElementById("weekTotal").textContent=money(centsOf(weekTotalOf(me), me));
+  }
+
   function renderPrize(){
+    var me=state.me, moneyMode=isMoney(me);
+    // the two modes each own one card: a weekly prize, or a payday.
+    var pbox=document.getElementById("prizeBox"), dbox=document.getElementById("paydayBox");
+    if(pbox) pbox.hidden = moneyMode;
+    if(dbox) dbox.hidden = !moneyMode;
+    // section labels follow the mode too
+    var al=document.getElementById("awardLbl"); if(al) al.textContent = moneyMode ? "Award money" : "Award points";
+    var ll=document.getElementById("loseTxt");  if(ll) ll.textContent = moneyMode ? "Lose money" : "Lose points";
+    var cl=document.getElementById("champLbl"); if(cl) cl.textContent = moneyMode ? "Piggy banks" : "Past winners";
+
     var t=document.getElementById("prizeTxt");
-    if(state.me.prize){ t.textContent=state.me.prize; t.classList.remove("empty"); }
+    if(me.prize){ t.textContent=me.prize; t.classList.remove("empty"); }
     else { t.textContent="Tap edit to set the prize…"; t.classList.add("empty"); }
+
+    if(moneyMode) renderPayday();
+  }
+
+  function renderPayday(){
+    var me=state.me;
+    var box=document.getElementById("paydayBox"), when=document.getElementById("paydayWhen"),
+        owed=document.getElementById("paydayOwed"), btn=document.getElementById("payBtn");
+    if(!box) return;
+    var owing=bankTotal(me), due=paydayDue(me);
+    box.classList.toggle("due", due);
+    if(me.payday && me.payday.date){
+      var n=daysUntil(me.payday.date);
+      when.classList.remove("empty");
+      when.textContent = n<=0 ? "Payday is today" : (n===1 ? "Tomorrow" : prettyDate(me.payday.date));
+      var every = me.payday.freq==="month" ? "every month" : (me.payday.freq==="fortnight" ? "every fortnight" : "every week");
+      owed.textContent = money(owing)+" waiting in the piggy banks · "+every;
+    } else {
+      when.classList.add("empty");
+      when.textContent="Tap edit to set a payday…";
+      owed.textContent = owing>0 ? (money(owing)+" waiting in the piggy banks") : "";
+    }
+    // paying out is always available once there is something to pay, not only on the day
+    btn.hidden = owing<=0;
+    btn.textContent = due ? ("💸 Pay out "+money(owing)+" now") : ("💸 Pay out "+money(owing)+" early");
   }
 
   function renderPicker(){
@@ -1115,7 +1348,7 @@
     me.jobs.forEach(function(j){
       var t=document.createElement("button"); t.className="tile";
       t.innerHTML='<span class="em">'+j.emoji+'</span><span class="cn">'+esc(j.label)+'</span>'+
-        '<span class="pt'+(j.pts<0?" neg":"")+'">'+(j.pts>0?"+":"")+j.pts+'</span>';
+        '<span class="pt'+(j.pts<0?" neg":"")+'">'+signedVal(j.pts, me)+'</span>';
       t.onclick=function(ev){ award(j, t, ev); };
       if(j.pts<0){ negCount++; if(neg) neg.appendChild(t); }
       else pos.appendChild(t);
@@ -1187,7 +1420,7 @@
       el.innerHTML='<span class="he">'+(e.emoji||"•")+'</span>'+
         '<span class="hl">'+esc(e.label||"Chore")+'</span>'+
         '<span class="hd">'+d.getDate()+'/'+(d.getMonth()+1)+'</span>'+
-        '<span class="hp '+(e.pts<0?"neg":"pos")+'">'+(e.pts>0?"+":"")+e.pts+'</span>'+
+        '<span class="hp '+(e.pts<0?"neg":"pos")+'">'+signedVal(e.pts, state.me)+'</span>'+
         '<button class="hx" title="Remove">🗑️</button>';
       el.querySelector(".hx").onclick=function(){ removeLogEntry(r.i, kidId); };
       list.appendChild(el);
@@ -1207,6 +1440,7 @@
   // ---------- past winners (family champions) ----------
   function renderChampions(){
     var wrap=document.getElementById("champs"); if(!wrap) return;
+    if(isMoney(state.me)) return renderBanks(wrap);
     var champs=state.champions||[];
     if(!champs.length){ wrap.innerHTML='<span class="champ-empty">The first winner shows up here after you end a week.</span>'; return; }
     wrap.innerHTML="";
@@ -1214,6 +1448,32 @@
       var pill=document.createElement("div"); pill.className="champpill";
       pill.innerHTML='<b>'+esc(c.name)+'</b> · '+c.pts+'pt · '+prettyWeek(c.week);
       wrap.appendChild(pill);
+    });
+  }
+
+  // MONEY MODE: what each kid has actually banked and not yet been paid.
+  // This total is never reset by a new week — only a payout clears it.
+  function renderBanks(wrap){
+    var me=state.me;
+    wrap.innerHTML="";
+    if(bankTotal(me)<=0){
+      wrap.innerHTML='<span class="champ-empty">Money earned this week lands here when the week ends. Nothing is ever wiped.</span>';
+      return;
+    }
+    me.kids.forEach(function(k){
+      var bank=bankOf(me,k.id), goal=goalOf(me,k.id);
+      var row=document.createElement("div"); row.className="bankrow";
+      row.style.setProperty("--c",k.colour);
+      var sub="";
+      if(goal && goal.target>0){
+        var left=Math.max(0, goal.target-bank);
+        sub = left>0 ? (money(left)+" to go"+(goal.label?" · "+esc(goal.label):""))
+                     : ("🎉 Goal reached"+(goal.label?" · "+esc(goal.label):""));
+      }
+      row.innerHTML='<div class="av">'+k.initial+'</div>'+
+        '<div class="mid"><div class="nm">'+esc(k.name)+'</div>'+(sub?'<div class="gl">'+sub+'</div>':'')+'</div>'+
+        '<div class="amt">'+money(bank)+'</div>';
+      wrap.appendChild(row);
     });
   }
   function prettyWeek(k){
@@ -1225,7 +1485,7 @@
 
   function flyPoint(ev,pts){
     var f=document.createElement("div"); f.className="fly";
-    f.textContent=(pts>0?"+":"")+pts;
+    f.textContent=signedVal(pts, state.me);
     f.style.color = pts<0 ? "#b0503a" : "var(--gold)";
     var x=ev?ev.clientX:window.innerWidth/2, y=ev?ev.clientY:200;
     f.style.left=(x-10)+"px"; f.style.top=(y-20)+"px";
@@ -1241,16 +1501,19 @@
   function renderLeaderboard(){
     var me=state.me, box=document.getElementById("lbList"); box.innerHTML="";
     document.getElementById("lbTitle").textContent = "🏅 "+me.name+" · this week";
-    var sorted=me.kids.slice().sort(function(a,b){ return (me.points[b.id]||0)-(me.points[a.id]||0); });
+    var moneyMode=isMoney(me);
+    // money mode has no placings, so the list keeps the family's own order
+    var sorted = moneyMode ? me.kids.slice()
+                           : me.kids.slice().sort(function(a,b){ return (me.points[b.id]||0)-(me.points[a.id]||0); });
     var medals=["🥇","🥈","🥉"];
     sorted.forEach(function(k,i){
       var p=me.points[k.id]||0;
       var row=document.createElement("div"); row.className="lbrow";
       row.style.setProperty("--c",k.colour);
-      row.innerHTML='<div class="pos">'+(i<3?medals[i]:(i+1))+'</div>'+
+      row.innerHTML=(moneyMode?'':'<div class="pos">'+(i<3?medals[i]:(i+1))+'</div>')+
         '<div class="av">'+k.initial+'</div>'+
         '<div class="nm">'+esc(k.name)+'</div>'+
-        '<div class="pt">'+p+'</div>';
+        '<div class="pt">'+(moneyMode?money(centsOf(p,me)):p)+'</div>';
       box.appendChild(row);
     });
   }
@@ -1405,7 +1668,11 @@
     setCrestVal=me.crest;
     document.getElementById("setCrest").textContent=me.crest;
     document.getElementById("setName").value=me.name;
-    renderSetKids(); renderSetJobs();
+    setModeScratch = me.mode==="money" ? "money" : "points";
+    setRateScratch = rateOf(me);
+    renderSetKids(); renderSetJobs(); renderSetGoals(); drawMode();
+    var nw=document.getElementById("newWeekBtn");
+    if(nw) nw.textContent = isMoney(me) ? "🏁 End week & bank the money" : "🏁 End week & crown champion";
     document.getElementById("sheet").classList.add("show");
   };
   window.closeSettings = function(){ document.getElementById("sheet").classList.remove("show"); };
@@ -1464,6 +1731,53 @@
     toast("Standard list loaded — tap Save changes");
   };
 
+  // ---------- MONEY MODE settings ----------
+  var setModeScratch="points", setRateScratch=DEFAULT_RATE, setGoalsScratch={};
+  window.setMode = function(m){ setModeScratch=m; drawMode(); renderSetGoals(); };
+  function drawMode(){
+    document.getElementById("modeBtn_points").className = setModeScratch==="points" ? "on" : "";
+    document.getElementById("modeBtn_money").className  = setModeScratch==="money"  ? "on" : "";
+    var hint=document.getElementById("modeHint");
+    hint.innerHTML = setModeScratch==="money"
+      ? "Kids earn real pocket money instead of points. <b>No 1st, 2nd or 3rd</b> — everyone runs their own race, which works with one kid or a big age gap. Money banks up and is only cleared when you pay it out."
+      : "Kids earn points and race each other. A champion is crowned at the end of every week and the scores reset.";
+    var wrap=document.getElementById("rateWrap");
+    wrap.hidden = setModeScratch!=="money";
+    var gr=document.getElementById("goalsRow");
+    if(gr) gr.hidden = setModeScratch!=="money";
+    var rin=document.getElementById("rateIn");
+    if(rin){ rin.value=setRateScratch; rin.oninput=function(){ setRateScratch=Math.max(1,parseInt(rin.value,10)||1); drawRateEg(); }; }
+    drawRateEg();
+  }
+  function drawRateEg(){
+    var eg=document.getElementById("rateEg"); if(!eg) return;
+    // show the rate against real chores so the number means something before you save
+    var samples=(state.me.jobs||[]).filter(function(j){ return j.pts>0; }).slice(0,2);
+    var bits=samples.map(function(j){ return esc(j.label)+" = "+money(j.pts*setRateScratch); });
+    var wk=weekTotalOf(state.me);
+    if(wk>0) bits.push("this week so far = "+money(wk*setRateScratch));
+    eg.innerHTML = bits.length ? ("Every chore is priced from this one rate. "+bits.join(" · ")) : "";
+  }
+
+  function renderSetGoals(){
+    var box=document.getElementById("setGoals"); if(!box) return;
+    setGoalsScratch={};
+    box.innerHTML="";
+    state.me.kids.forEach(function(k){
+      var g=goalOf(state.me,k.id)||{label:"",target:0};
+      setGoalsScratch[k.id]={label:g.label||"", target:g.target||0};
+      var row=document.createElement("div"); row.className="goalrow";
+      var nm=document.createElement("div"); nm.className="gn"; nm.textContent=k.name;
+      var lab=document.createElement("input"); lab.className="gl"; lab.placeholder="Saving for…"; lab.value=g.label||"";
+      lab.oninput=function(){ setGoalsScratch[k.id].label=lab.value; };
+      var tgt=document.createElement("input"); tgt.className="gt"; tgt.type="number"; tgt.min="0"; tgt.step="1";
+      tgt.placeholder="$"; tgt.value = g.target>0 ? (g.target/100) : "";
+      tgt.oninput=function(){ setGoalsScratch[k.id].target=Math.round((parseFloat(tgt.value)||0)*100); };
+      row.appendChild(nm); row.appendChild(lab); row.appendChild(tgt);
+      box.appendChild(row);
+    });
+  }
+
   window.saveSettings = function(){
     var name=document.getElementById("setName").value.trim();
     if(name) state.me.name=name;
@@ -1472,9 +1786,24 @@
     if(kids.length) state.me.kids=kids;
     // reconcile points map
     var np={}; state.me.kids.forEach(function(k){ np[k.id]=state.me.points[k.id]||0; }); state.me.points=np;
+    // a removed kid should not leave banked money or a goal stranded in state
+    var nb={}, ng={};
+    state.me.kids.forEach(function(k){
+      nb[k.id]=bankOf(state.me,k.id);
+      if(goalOf(state.me,k.id)) ng[k.id]=state.me.goals[k.id];
+    });
+    state.me.bank=nb; state.me.goals=ng;
     if(selected && !state.me.kids.some(function(k){return k.id===selected;})) selected=null;
     var jobs=setJobsScratch.filter(function(j){return j.label.trim();}).map(function(j){ return {id:j.id,label:j.label.trim(),emoji:j.emoji||"⭐",pts:j.pts||0}; });
     if(jobs.length) state.me.jobs=jobs;
+    state.me.mode = setModeScratch==="money" ? "money" : "points";
+    state.me.rate = Math.max(1, setRateScratch||DEFAULT_RATE);
+    var goals={};
+    state.me.kids.forEach(function(k){
+      var g=setGoalsScratch[k.id];
+      if(g && (g.target>0 || (g.label||"").trim())) goals[k.id]={label:(g.label||"").trim(), target:g.target||0};
+    });
+    state.me.goals=goals;
     save(); renderAll(); closeSettings(); toast("Saved!");
   };
 
@@ -1492,6 +1821,32 @@
 
   window.newWeek = function(){
     var me=state.me;
+
+    if(isMoney(me)){
+      // MONEY MODE: this week's earnings move into each kid's piggy bank.
+      // Nothing is wiped. Wiping money a child has earned is the one thing
+      // that would make them never open this again.
+      var swept=0, hit=[];
+      me.kids.forEach(function(k){
+        var c=centsOf(me.points[k.id]||0, me);
+        if(c>0){
+          var before=bankOf(me,k.id);
+          me.bank[k.id]=before+c;
+          swept+=c;
+          var g=goalOf(me,k.id);
+          if(g && g.target>0 && before<g.target && me.bank[k.id]>=g.target) hit.push(k.name);
+        }
+        me.points[k.id]=0;
+      });
+      state.log=[];
+      me.week=weekKey();
+      selected=null;
+      save(); renderAll(); closeSettings();
+      if(hit.length) toast("🎉 "+hit.join(" & ")+" reached their goal!");
+      else toast(swept>0 ? ("🐷 "+money(swept)+" banked. New week started.") : "New week started.");
+      return;
+    }
+
     var w=winnerOf(me);
     if(w){ state.champions.unshift({week:me.week, name:w.names.join(" & "), pts:w.pts}); }
     if(state.champions.length>20) state.champions=state.champions.slice(0,20);
@@ -1501,6 +1856,76 @@
     selected=null;
     save(); renderAll(); closeSettings();
     toast(w ? ("🏆 Champion: "+w.names.join(" & ")+"! New week started.") : "New week started.");
+  };
+
+  // ================= payout =================
+  // The app never decides that money changed hands. A parent confirms it,
+  // because a balance that clears itself stops matching real life within a fortnight.
+  window.openPayout = function(){
+    var me=state.me;
+    var owing=bankTotal(me);
+    if(owing<=0){ toast("Nothing to pay out yet"); return; }
+    var lines=[];
+    me.kids.forEach(function(k){
+      var b=bankOf(me,k.id);
+      if(b>0) lines.push("  " + k.name + "   " + money(b));
+    });
+    var msg = "Pay out " + money(owing) + "?\n\n" + lines.join("\n") +
+              "\n\nTick this off once you have actually handed the money over. " +
+              "Each piggy bank goes back to zero.";
+    if(!confirm(msg)) return;
+
+    var items=[];
+    me.kids.forEach(function(k){
+      var b=bankOf(me,k.id);
+      if(b>0){ items.push({kid:k.id, name:k.name, amount:b}); me.bank[k.id]=0; }
+    });
+    if(!me.payouts) me.payouts=[];
+    me.payouts.unshift({ts:Date.now(), total:owing, items:items});
+    if(me.payouts.length>24) me.payouts=me.payouts.slice(0,24);
+
+    // roll the payday forward to the next one
+    if(me.payday && me.payday.date){
+      var guard=0;
+      while(me.payday.date <= todayISO() && guard++ < 400){
+        me.payday.date = advancePayday(me.payday.date, me.payday.freq);
+      }
+    }
+    save(); renderAll();
+    toast("💸 "+money(owing)+" paid out");
+  };
+
+  // ================= payday picker =================
+  window.editPayday = function(){
+    var pd=state.me.payday||{};
+    paydayScratch = { freq: pd.freq||"week", date: pd.date||nextFridayISO() };
+    drawPayday();
+    document.getElementById("paydaySheet").classList.add("show");
+  };
+  window.closePayday = function(){ document.getElementById("paydaySheet").classList.remove("show"); };
+  var paydayScratch={freq:"week",date:""};
+  function nextFridayISO(){
+    var d=new Date(); var add=(5 - d.getDay() + 7) % 7; if(add===0) add=7;
+    d.setDate(d.getDate()+add);
+    return d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
+  }
+  function drawPayday(){
+    document.getElementById("pdDate").value = paydayScratch.date;
+    ["week","fortnight","month"].forEach(function(f){
+      var b=document.getElementById("pdFreq_"+f);
+      if(b) b.className = (paydayScratch.freq===f ? "on" : "");
+    });
+  }
+  window.setPaydayFreq = function(f){ paydayScratch.freq=f; drawPayday(); };
+  window.savePayday = function(){
+    var d=document.getElementById("pdDate").value;
+    if(!d){ toast("Pick a date first"); return; }
+    state.me.payday = { freq: paydayScratch.freq, date: d };
+    save(); renderAll(); closePayday();
+    toast("Payday set for "+prettyDate(d));
+  };
+  window.clearPayday = function(){
+    state.me.payday=null; save(); renderAll(); closePayday(); toast("Payday removed");
   };
   function winnerOf(fam){
     var max=Math.max.apply(null,fam.kids.map(function(k){return fam.points[k.id]||0;}).concat([0]));
@@ -1555,6 +1980,13 @@
       if(!state.me.jobs.some(function(j){ return j.pts < 0; })){
         state.me.jobs = state.me.jobs.concat(DEFAULT_JOBS.filter(function(j){ return j.pts < 0; }).map(function(j){ return Object.assign({},j); }));
       }
+      // MONEY MODE: families created before this build have none of these.
+      // Default to points mode so nothing changes for anyone already playing.
+      if(state.me.mode !== "money") state.me.mode = "points";
+      if(typeof state.me.rate !== "number" || state.me.rate <= 0) state.me.rate = DEFAULT_RATE;
+      if(!state.me.bank) state.me.bank = {};
+      if(!state.me.goals) state.me.goals = {};
+      if(state.me.payday === undefined) state.me.payday = null;
       if(!state.me.points) state.me.points = {};
       state.me.kids.forEach(function(k){ if(typeof state.me.points[k.id] !== "number") state.me.points[k.id] = 0; });
       document.getElementById("app").style.display="block";
