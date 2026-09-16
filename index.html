@@ -492,6 +492,15 @@
         </div>
         <div class="modehint" id="rateEg"></div>
       </div>
+
+      <div id="rankWrap" hidden>
+        <div class="lab" style="margin-top:20px;">The weekly race</div>
+        <div class="modeseg">
+          <button id="rankBtn_on" onclick="setRanked(true)">🏅 Rank them</button>
+          <button id="rankBtn_off" onclick="setRanked(false)">🤝 No ranking</button>
+        </div>
+        <div class="modehint" id="rankHint"></div>
+      </div>
     </div>
 
     <div class="setrow" id="goalsRow" hidden>
@@ -801,7 +810,8 @@
     return { name:me.name, crest:me.crest, year:me.year||"", week:weekTotalOf(me), total:me.allTime||0,
              kids:me.kids, points:me.points, jobs:me.jobs, prize:me.prize,
              allTime:me.allTime||0, weekKey:me.week,
-             mode:me.mode||"points", rate:me.rate||DEFAULT_RATE, bank:me.bank||{}, goals:me.goals||{}, payday:me.payday||null };
+             mode:me.mode||"points", rate:me.rate||DEFAULT_RATE, bank:me.bank||{}, goals:me.goals||{}, payday:me.payday||null,
+             ranked:me.ranked !== false };
   }
   function schedulePush(){
     if(!sync.on || sync.applying || !state || !state.me) return;
@@ -870,6 +880,7 @@
     if(d.bank) me.bank = d.bank;
     if(d.goals) me.goals = d.goals;
     if(d.payday !== undefined) me.payday = d.payday;
+    if(typeof d.ranked === "boolean") me.ranked = d.ranked;
     if(d.weekKey) me.week = d.weekKey;
     if(selected && !me.kids.some(function(k){return k.id===selected;})) selected = null;
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -899,6 +910,15 @@
   // One conversion rate drives money mode, so every existing chore has a price
   // the moment you switch and nothing needs re-entering.
   function isMoney(fam){ return (fam||state.me).mode === "money"; }
+  // Money mode can still be a race. The rule that keeps it fair: rank THIS WEEK'S
+  // earnings, never the piggy bank. A bank leaderboard makes the oldest kid
+  // permanently richest and punishes the kid who actually spent their savings.
+  function isRanked(fam){
+    fam = fam || state.me;
+    if(!isMoney(fam)) return true;                 // points mode is always a race
+    if(!fam.kids || fam.kids.length < 2) return false;  // a leaderboard of one is silly
+    return fam.ranked !== false;
+  }
   function rateOf(fam){ var r=(fam||state.me).rate; return (typeof r==="number" && r>0) ? r : DEFAULT_RATE; }
   function centsOf(pts, fam){ return Math.round(pts * rateOf(fam)); }
   function money(cents){
@@ -1097,7 +1117,8 @@
       onboarded:true, rev:0,
       me:{ code:code, name:name, crest:pickedCrest, kids:kids, points:{}, jobs:DEFAULT_JOBS.map(function(j){return Object.assign({},j);}),
            prize:"", allTime:0, week:weekKey(),
-           mode:"points", rate:DEFAULT_RATE, bank:{}, goals:{}, payday:null },
+           mode:"points", rate:DEFAULT_RATE, bank:{}, goals:{}, payday:null,
+           ranked:(kids.length > 1) },
       friends: [],          // extra classes added by code (outside your school)
       champions:[]
     };
@@ -1249,19 +1270,35 @@
     document.getElementById("weekTotal").textContent=weekTotalOf(me)+" pts";
   }
 
-  // MONEY MODE board: no medals, no sorting, nobody is 1st or 3rd.
-  // Every kid is running their own race against their own savings goal,
-  // which is what makes this work for an only child or a big age gap.
+  // MONEY MODE board.
+  // Ranked ON:  a race on THIS WEEK'S earnings. Resets every Monday, so a little
+  //             kid doing five jobs genuinely beats a big kid doing two.
+  // Ranked OFF: no placings at all, for an only child or a big age gap.
+  // Either way the piggy bank is NEVER ranked. Ranking savings would make the
+  // oldest permanently richest and would punish the kid who spent theirs.
   function renderBoardMoney(){
     var me=state.me, box=document.getElementById("board"); box.innerHTML="";
-    var btn=document.getElementById("fullBtn"); if(btn) btn.hidden=true;
-    me.kids.forEach(function(k){
+    var ranked=isRanked(me);
+    var order = ranked ? me.kids.slice().sort(function(a,b){ return (me.points[b.id]||0)-(me.points[a.id]||0); })
+                       : me.kids.slice();
+    var top = me.kids.length ? Math.max.apply(null, me.kids.map(function(k){ return me.points[k.id]||0; })) : 0;
+
+    var btn=document.getElementById("fullBtn");
+    var shown = ranked ? order.slice(0,3) : order;
+    if(btn){
+      var rest = me.kids.length - shown.length;
+      btn.hidden = rest <= 0;
+      btn.textContent = "🏅 Full leaderboard" + (rest>0 ? "  ·  "+rest+" more" : "");
+    }
+
+    var medals=["🥇","🥈","🥉"];
+    shown.forEach(function(k,idx){
       var p=me.points[k.id]||0;                 // points earned this week
       var wk=centsOf(p, me);                    // ...in money
       var bank=bankOf(me,k.id);
       var goal=goalOf(me,k.id);
       var el=document.createElement("div");
-      el.className="kid";
+      el.className="kid"+(ranked && p>0 && p===top ? " leader" : "");
       el.style.setProperty("--c",k.colour);
       var mid='<div class="nm">'+esc(k.name)+'<span class="book">📖</span></div>';
       if(goal && goal.target>0){
@@ -1272,7 +1309,8 @@
       } else {
         mid+='<div class="sub">🐷 <b>'+money(bank)+'</b> saved</div>';
       }
-      el.innerHTML='<div class="av">'+k.initial+'</div>'+
+      el.innerHTML=(ranked ? '<div class="pl">'+medals[idx]+'</div>' : '')+
+        '<div class="av">'+k.initial+'</div>'+
         '<div class="mid">'+mid+'</div>'+
         '<div class="pts" data-k="'+k.id+'">'+money(wk)+'</div>';
       el.onclick=function(){ openHistory(k.id); };
@@ -1475,6 +1513,19 @@
         '<div class="amt">'+money(bank)+'</div>';
       wrap.appendChild(row);
     });
+    // when the week is a race, past top earners sit underneath the banks
+    var champs=(state.champions||[]).slice(0,6);
+    if(isRanked(me) && champs.length){
+      var lbl=document.createElement("div"); lbl.className="seclbl"; lbl.style.marginTop="22px";
+      lbl.innerHTML='<span class="txt">Past top earners</span><span class="rule"></span>';
+      wrap.appendChild(lbl);
+      champs.forEach(function(c){
+        var pill=document.createElement("div"); pill.className="champpill";
+        var amt = (typeof c.cents==="number") ? money(c.cents) : (c.pts+"pt");
+        pill.innerHTML='<b>'+esc(c.name)+'</b> · '+amt+' · '+prettyWeek(c.week);
+        wrap.appendChild(pill);
+      });
+    }
   }
   function prettyWeek(k){
     var p=String(k||"").split("-"); if(p.length<3) return String(k||"");
@@ -1501,16 +1552,16 @@
   function renderLeaderboard(){
     var me=state.me, box=document.getElementById("lbList"); box.innerHTML="";
     document.getElementById("lbTitle").textContent = "🏅 "+me.name+" · this week";
-    var moneyMode=isMoney(me);
-    // money mode has no placings, so the list keeps the family's own order
-    var sorted = moneyMode ? me.kids.slice()
-                           : me.kids.slice().sort(function(a,b){ return (me.points[b.id]||0)-(me.points[a.id]||0); });
+    var moneyMode=isMoney(me), ranked=isRanked(me);
+    // with ranking off the list keeps the family's own order and shows no placings
+    var sorted = ranked ? me.kids.slice().sort(function(a,b){ return (me.points[b.id]||0)-(me.points[a.id]||0); })
+                        : me.kids.slice();
     var medals=["🥇","🥈","🥉"];
     sorted.forEach(function(k,i){
       var p=me.points[k.id]||0;
       var row=document.createElement("div"); row.className="lbrow";
       row.style.setProperty("--c",k.colour);
-      row.innerHTML=(moneyMode?'':'<div class="pos">'+(i<3?medals[i]:(i+1))+'</div>')+
+      row.innerHTML=(!ranked?'':'<div class="pos">'+(i<3?medals[i]:(i+1))+'</div>')+
         '<div class="av">'+k.initial+'</div>'+
         '<div class="nm">'+esc(k.name)+'</div>'+
         '<div class="pt">'+(moneyMode?money(centsOf(p,me)):p)+'</div>';
@@ -1670,9 +1721,11 @@
     document.getElementById("setName").value=me.name;
     setModeScratch = me.mode==="money" ? "money" : "points";
     setRateScratch = rateOf(me);
+    setRankedScratch = (me.ranked !== false);
     renderSetKids(); renderSetJobs(); renderSetGoals(); drawMode();
     var nw=document.getElementById("newWeekBtn");
-    if(nw) nw.textContent = isMoney(me) ? "🏁 End week & bank the money" : "🏁 End week & crown champion";
+    if(nw) nw.textContent = !isMoney(me) ? "🏁 End week & crown champion"
+                          : (isRanked(me) ? "🏁 End week, crown & bank" : "🏁 End week & bank the money");
     document.getElementById("sheet").classList.add("show");
   };
   window.closeSettings = function(){ document.getElementById("sheet").classList.remove("show"); };
@@ -1732,8 +1785,9 @@
   };
 
   // ---------- MONEY MODE settings ----------
-  var setModeScratch="points", setRateScratch=DEFAULT_RATE, setGoalsScratch={};
+  var setModeScratch="points", setRateScratch=DEFAULT_RATE, setGoalsScratch={}, setRankedScratch=true;
   window.setMode = function(m){ setModeScratch=m; drawMode(); renderSetGoals(); };
+  window.setRanked = function(v){ setRankedScratch=!!v; drawRanked(); };
   function drawMode(){
     document.getElementById("modeBtn_points").className = setModeScratch==="points" ? "on" : "";
     document.getElementById("modeBtn_money").className  = setModeScratch==="money"  ? "on" : "";
@@ -1748,6 +1802,18 @@
     var rin=document.getElementById("rateIn");
     if(rin){ rin.value=setRateScratch; rin.oninput=function(){ setRateScratch=Math.max(1,parseInt(rin.value,10)||1); drawRateEg(); }; }
     drawRateEg();
+    drawRanked();
+  }
+
+  function drawRanked(){
+    var rw=document.getElementById("rankWrap"); if(!rw) return;
+    // only means anything in money mode, and only with someone to race against
+    rw.hidden = !(setModeScratch==="money" && state.me.kids.length > 1);
+    document.getElementById("rankBtn_on").className  = setRankedScratch ? "on" : "";
+    document.getElementById("rankBtn_off").className = setRankedScratch ? "" : "on";
+    document.getElementById("rankHint").innerHTML = setRankedScratch
+      ? "Ranks <b>this week's earnings only</b>, so it resets every Monday and a younger kid can genuinely win. Piggy banks are never ranked, because that would leave the oldest permanently on top and punish whoever spent their savings."
+      : "Nobody is 1st, 2nd or 3rd. Each kid just runs at their own savings goal. Best when there's a big age gap and the race would always go the same way.";
   }
   function drawRateEg(){
     var eg=document.getElementById("rateEg"); if(!eg) return;
@@ -1804,6 +1870,8 @@
       if(g && (g.target>0 || (g.label||"").trim())) goals[k.id]={label:(g.label||"").trim(), target:g.target||0};
     });
     state.me.goals=goals;
+    // an only child can never be ranked, whatever the toggle last said
+    state.me.ranked = (state.me.kids.length > 1) ? setRankedScratch : false;
     save(); renderAll(); closeSettings(); toast("Saved!");
   };
 
@@ -1826,6 +1894,14 @@
       // MONEY MODE: this week's earnings move into each kid's piggy bank.
       // Nothing is wiped. Wiping money a child has earned is the one thing
       // that would make them never open this again.
+      // crown the week's top EARNER before the scores are cleared.
+      // Coming last costs nobody a cent, which is exactly why this is safe to rank.
+      var champ = isRanked(me) ? winnerOf(me) : null;
+      if(champ){
+        state.champions.unshift({week:me.week, name:champ.names.join(" & "), pts:champ.pts,
+                                 cents:centsOf(champ.pts, me)});
+        if(state.champions.length>20) state.champions=state.champions.slice(0,20);
+      }
       var swept=0, hit=[];
       me.kids.forEach(function(k){
         var c=centsOf(me.points[k.id]||0, me);
@@ -1843,6 +1919,7 @@
       selected=null;
       save(); renderAll(); closeSettings();
       if(hit.length) toast("🎉 "+hit.join(" & ")+" reached their goal!");
+      else if(champ) toast("🏆 Top earner: "+champ.names.join(" & ")+" · "+money(centsOf(champ.pts,me))+". "+money(swept)+" banked.");
       else toast(swept>0 ? ("🐷 "+money(swept)+" banked. New week started.") : "New week started.");
       return;
     }
@@ -1987,6 +2064,8 @@
       if(!state.me.bank) state.me.bank = {};
       if(!state.me.goals) state.me.goals = {};
       if(state.me.payday === undefined) state.me.payday = null;
+      // ranking in money mode: default on for 2+ kids, off for an only child
+      if(typeof state.me.ranked !== "boolean") state.me.ranked = (state.me.kids.length > 1);
       if(!state.me.points) state.me.points = {};
       state.me.kids.forEach(function(k){ if(typeof state.me.points[k.id] !== "number") state.me.points[k.id] = 0; });
       document.getElementById("app").style.display="block";
