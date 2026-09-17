@@ -34,7 +34,10 @@
   /* form controls don't inherit text-transform, so name them explicitly */
   button, input, input::placeholder, textarea, select{ text-transform:uppercase; }
   /* behaviour labels stay sentence case: in caps they wrap and the tiles get tall */
-  #chores .tile .cn, #setJobs input{ text-transform:none; }
+  /* The losing-points tiles live in #choresNeg, which was never added here — so every
+     negative chore has been rendering in ALL CAPS while the positives are sentence case.
+     Caps wrap and make the tiles tall, which is the exact thing that was ruled on before. */
+  #chores .tile .cn, #choresNeg .tile .cn, #choreOfferList .tile .cn, #setJobs input{ text-transform:none; }
   .wrap{max-width:560px;margin:0 auto;}
   button{font-family:inherit;}
 
@@ -687,7 +690,7 @@
     {id:"n1", label:"Didn't listen",        emoji:"🙉", pts:-1},
     {id:"n2", label:"Unkind to a sibling",  emoji:"💔", pts:-1},
     {id:"n3", label:"Left a big mess",      emoji:"🌪️", pts:-1},
-    {id:"n5", label:"Wouldn't give up a device",emoji:"📱",pts:-1}
+    {id:"n5", label:"Device fuss",      emoji:"📱",pts:-1}
   ];
   var DEFAULT_RATE = 10;   // cents per point in MONEY mode: 1 point = 10c
   var STORE_KEY = "famileague_v1";
