@@ -932,7 +932,10 @@
              // The log used to stay on the device that wrote it, so a second phone got
              // the new TOTAL but none of the entries behind it — the history sheet
              // disagreed with the score. It travels with points now so they stay in step.
-             log:(state.log||[]).slice(-300) };
+             log:(state.log||[]).slice(-300),
+             // champions had the same gap the log did: device-local, so a second phone
+             // showed no past winners at all. Needed for the Lloydd Cup history too.
+             champions:(state.champions||[]).slice(0,20) };
   }
   function schedulePush(){
     if(!sync.on || sync.applying || !state || !state.me) return;
@@ -1004,6 +1007,7 @@
     if(typeof d.ranked === "boolean") me.ranked = d.ranked;
     if(d.choresOfferV2 === true) me.choresOfferV2 = true;
     if(Array.isArray(d.log)) state.log = d.log;
+    if(Array.isArray(d.champions)) state.champions = d.champions;
     if(d.weekKey) me.week = d.weekKey;
     if(selected && !me.kids.some(function(k){return k.id===selected;})) selected = null;
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
