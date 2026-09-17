@@ -672,7 +672,9 @@
   <div class="panel">
     <h3 id="histTitle">Log</h3>
     <div id="histList"></div>
-    <button class="btn" onclick="closeHistory()" style="margin-top:16px;">Done</button>
+    <button class="btn" id="histAddBtn" onclick="addToHistDay()" hidden style="margin-top:14px;">+ Add to this day</button>
+    <button class="btn ghost" id="histAllBtn" onclick="showWholeWeek()" hidden style="margin-top:10px;">Show the whole week</button>
+    <button class="btn ghost" onclick="closeHistory()" style="margin-top:10px;">Done</button>
   </div>
 </div>
 
@@ -1752,22 +1754,61 @@
   };
 
   // ---------- per-kid history log ----------
-  window.openHistory = function(kidId){
+  // histDay = null shows the whole week; 0-6 narrows it to one day, which is what
+  // tapping a day on the grid does. Without it you had to hunt for Tuesday's rows
+  // among the whole week to change them.
+  var histDay = null, histKid = null;
+  window.openHistory = function(kidId, dayIdx){
     var me=state.me;
     var kid=me.kids.filter(function(k){return k.id===kidId;})[0];
     if(!kid) return;
+    histKid = kidId;
+    histDay = (typeof dayIdx === "number") ? dayIdx : null;
     var t=document.getElementById("histTitle");
-    t.textContent=kid.name+" — this week"; t.style.color=kid.colour;
+    t.textContent = kid.name + (histDay===null ? " — this week" : " · " + fullDayName(histDay));
+    t.style.color=kid.colour;
+    var add=document.getElementById("histAddBtn");
+    if(add){
+      add.hidden = (histDay===null) || isFuture(weekDays()[histDay]);
+      add.textContent = "+ Add to " + fullDayName(histDay);
+    }
+    var all=document.getElementById("histAllBtn");
+    if(all) all.hidden = (histDay===null);
     renderHistory(kidId);
     document.getElementById("histSheet").classList.add("show");
+  };
+  function fullDayName(i){
+    var names=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+    return names[i] || "";
+  }
+  // jump from looking at a day straight into awarding into it
+  // must be a window function: an inline onclick evaluates in global scope and
+  // cannot see histKid, which lives inside this IIFE.
+  window.showWholeWeek = function(){ openHistory(histKid); };
+  window.addToHistDay = function(){
+    var d = weekDays()[histDay];
+    selected = histKid;
+    setAwardDay(dayIndexOf(Date.now())===histDay ? null : d);
+    closeHistory();
+    renderPicker(); updateHint();
+    document.getElementById("picker").scrollIntoView({block:"center"});
   };
   window.closeHistory = function(){ document.getElementById("histSheet").classList.remove("show"); };
   function renderHistory(kidId){
     var list=document.getElementById("histList"); list.innerHTML="";
     var rows=[];
-    (state.log||[]).forEach(function(e,i){ if(e.kid===kidId) rows.push({e:e,i:i}); });
+    (state.log||[]).forEach(function(e,i){
+      if(e.kid!==kidId) return;
+      if(histDay!==null && dayIndexOf(e.ts)!==histDay) return;
+      rows.push({e:e,i:i});
+    });
     rows.reverse();  // newest first
-    if(!rows.length){ list.innerHTML='<div class="hist-empty">No chores logged yet this week.</div>'; return; }
+    if(!rows.length){
+      list.innerHTML = '<div class="hist-empty">'+
+        (histDay===null ? "No chores logged yet this week."
+                        : "Nothing on "+fullDayName(histDay)+" yet.")+'</div>';
+      return;
+    }
     rows.forEach(function(r){
       var e=r.e, d=new Date(e.ts);
       var el=document.createElement("div"); el.className="histrow";
@@ -1796,7 +1837,7 @@
         if(i<0) return;
         var nd=weekDays()[i]; nd.setHours(12,0,0,0);
         state.log[r.i].ts = nd.getTime();
-        save(); renderWeekBtn(); renderHistory(kidId);
+        save(); renderBoard(); renderWeekBtn(); renderHistory(kidId);
         toast("Moved to "+DAY_NAMES[i]);
       };
       el.insertBefore(sel, el.querySelector(".hp"));
@@ -2392,9 +2433,14 @@
         b.textContent = future ? "·" : (pts===0 ? "–" : (isMoney(me) ? money(centsOf(pts,me)) : pts));
         if(!future){
           b.onclick=function(){
-            selected = k.id;                       // jump straight into awarding this kid
-            setAwardDay(i===todayIdx ? null : d);  // today needs no banner
             closeWeek();
+            if(pts !== 0){
+              // something is already on this day: show it, so it can be changed
+              openHistory(k.id, i);
+              return;
+            }
+            selected = k.id;                       // empty day: straight into awarding
+            setAwardDay(i===todayIdx ? null : d);  // today needs no banner
             renderPicker(); updateHint();
             document.getElementById("picker").scrollIntoView({block:"center"});
           };
