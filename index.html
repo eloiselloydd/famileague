@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#F6F3EE">
 <title>Famileague</title>
+<!-- installable: home screen icon, full screen, works offline. Famileague was the only
+     one of the three apps without this, so a family who "kept forgetting" had nothing
+     on their phone to remind them it existed. -->
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Famileague">
+<meta name="mobile-web-app-capable" content="yes">
 <style>
   :root{
     --cream:#F6F3EE;
@@ -193,6 +202,23 @@
   /* ---------- family handle picker ---------- */
   .tile.unpicked{opacity:.4;}
   .tile .tick{flex:none;font-size:13px;margin-left:2px;}
+  /* ---------- week grid ---------- */
+  .weekbtn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;background:var(--card);border:2px solid var(--line);border-radius:14px;padding:13px;font-size:13px;font-weight:800;color:var(--ink);cursor:pointer;margin-top:9px;font-family:inherit;box-shadow:var(--shadow);}
+  .weekbtn .gap{color:#b0503a;}
+  .wgrid{width:100%;border-collapse:separate;border-spacing:3px;}
+  .wgrid th{font-size:9px;letter-spacing:.1em;font-weight:800;color:var(--muted);padding:2px 0 6px;text-transform:uppercase;}
+  .wgrid th.today{color:var(--indigo);}
+  .wgrid td.kid{text-align:left;font-size:12px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:78px;padding-right:5px;}
+  .wcell{background:#fff;border:2px solid var(--line);border-radius:9px;padding:9px 2px;font-size:13px;font-weight:800;text-align:center;cursor:pointer;font-family:inherit;width:100%;color:var(--ink);font-variant-numeric:tabular-nums;}
+  .wcell.zero{color:rgba(33,30,28,.22);border-style:dashed;}
+  .wcell.today{border-color:var(--indigo);}
+  .wcell.neg{color:#b0503a;}
+  .wcell.future{opacity:.3;cursor:default;border-style:dotted;}
+  .wcell:not(.future):active{transform:scale(.95);}
+  .wlegend{font-size:11px;color:var(--muted);font-weight:600;line-height:1.45;margin-top:14px;}
+  .backdate{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--gold-soft);border:2px solid var(--gold);border-radius:13px;padding:11px 14px;margin-top:12px;font-size:13px;font-weight:700;color:#3a2a06;}
+  .backdate button{background:none;border:none;font-family:inherit;font-size:12px;font-weight:800;color:#3a2a06;text-decoration:underline;cursor:pointer;flex:none;}
+  .histrow select{flex:none;border:2px solid var(--line);border-radius:8px;padding:4px 2px;font-family:inherit;font-size:11px;font-weight:800;color:var(--ink);background:#fff;}
   .handlebox{display:flex;align-items:center;gap:0;border:2px solid var(--line);border-radius:12px;background:#fff;overflow:hidden;}
   .handlebox .at{flex:none;padding:12px 4px 12px 13px;font-size:16px;font-weight:800;color:var(--muted);}
   .handlebox input{flex:1;min-width:0;border:none;outline:none;padding:12px 12px 12px 2px;font-family:inherit;font-size:16px;font-weight:800;letter-spacing:.06em;color:var(--indigo);background:transparent;}
@@ -439,6 +465,8 @@
     <div class="seclbl"><span class="txt">This week</span><span class="rule"></span><span class="val" id="weekTotal">0 pts</span></div>
     <div class="board" id="board"></div>
     <button class="fullbtn" id="fullBtn" onclick="openLeaderboard()" hidden>🏅 Full leaderboard</button>
+    <button class="weekbtn" id="weekBtn" onclick="openWeek()">📅 This week, day by day</button>
+    <div class="backdate" id="backdateBar" hidden></div>
 
     <div class="prize" id="prizeBox">
       <div class="h"><span class="l">🎁 This week's prize</span><button class="edit" onclick="editPrize()">Edit</button></div>
@@ -577,6 +605,19 @@
     </p>
     <button class="btn" id="choreOfferBtn" onclick="acceptNewChores()">Add them to my board</button>
     <button class="btn ghost" onclick="declineNewChores()" style="margin-top:10px;">No thanks, keep mine</button>
+  </div>
+</div>
+
+<!-- ============ WEEK GRID SHEET ============ -->
+<div class="sheet" id="weekSheet">
+  <div class="panel">
+    <h3 id="weekTitle">📅 This week</h3>
+    <p style="font-size:13px;color:var(--muted);font-weight:600;margin:-8px 0 16px;line-height:1.45;">
+      Tap any day to add points to it. Missed Tuesday? Tap Tuesday.
+    </p>
+    <div style="overflow-x:auto;"><table class="wgrid" id="weekGrid"></table></div>
+    <div class="wlegend" id="weekLegend"></div>
+    <button class="btn" onclick="closeWeek()" style="margin-top:16px;">Done</button>
   </div>
 </div>
 
@@ -885,7 +926,11 @@
              kids:me.kids, points:me.points, jobs:me.jobs, prize:me.prize,
              allTime:me.allTime||0, weekKey:me.week,
              mode:me.mode||"points", rate:me.rate||DEFAULT_RATE, bank:me.bank||{}, goals:me.goals||{}, payday:me.payday||null,
-             ranked:me.ranked !== false, choresOfferV2:me.choresOfferV2 === true };
+             ranked:me.ranked !== false, choresOfferV2:me.choresOfferV2 === true,
+             // The log used to stay on the device that wrote it, so a second phone got
+             // the new TOTAL but none of the entries behind it — the history sheet
+             // disagreed with the score. It travels with points now so they stay in step.
+             log:(state.log||[]).slice(-300) };
   }
   function schedulePush(){
     if(!sync.on || sync.applying || !state || !state.me) return;
@@ -956,6 +1001,7 @@
     if(d.payday !== undefined) me.payday = d.payday;
     if(typeof d.ranked === "boolean") me.ranked = d.ranked;
     if(d.choresOfferV2 === true) me.choresOfferV2 = true;
+    if(Array.isArray(d.log)) state.log = d.log;
     if(d.weekKey) me.week = d.weekKey;
     if(selected && !me.kids.some(function(k){return k.id===selected;})) selected = null;
     try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){}
@@ -1444,6 +1490,57 @@
     renderAll();
   };
 
+  // ---------- the week, as days ----------
+  // The Davidsons' feedback: they kept forgetting to award, and there was no way to
+  // see the week or fill in the days they missed. Both need the week broken into days.
+  var DAY_NAMES = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  function weekStart(){                       // Monday 00:00 of the current week
+    var d=new Date(); var off=(d.getDay()+6)%7;
+    d.setDate(d.getDate()-off); d.setHours(0,0,0,0);
+    return d;
+  }
+  function weekDays(){                        // the seven Date objects, Mon..Sun
+    var s0=weekStart(), out=[];
+    for(var i=0;i<7;i++){ var d=new Date(s0); d.setDate(s0.getDate()+i); out.push(d); }
+    return out;
+  }
+  function dayIndexOf(ts){                    // 0..6 within this week, or -1 if outside
+    var s0=weekStart().getTime();
+    var i=Math.floor((ts - s0) / 86400000);
+    return (i>=0 && i<7) ? i : -1;
+  }
+  function isFuture(d){ var t=new Date(); t.setHours(23,59,59,999); return d.getTime() > t.getTime(); }
+  // points each kid earned on each day this week, summed from the log's clamped deltas
+  // which day a new award lands on. null = today.
+  var awardDay = null;
+  function awardTs(){
+    if(!awardDay) return Date.now();
+    var d=new Date(awardDay); d.setHours(12,0,0,0);   // noon, safely inside the day
+    return d.getTime();
+  }
+  window.setAwardDay = function(d){
+    awardDay = d ? new Date(d) : null;
+    renderBackdateBar(); updateHint();
+  };
+  function renderBackdateBar(){
+    var bar=document.getElementById("backdateBar"); if(!bar) return;
+    if(!awardDay){ bar.hidden = true; return; }
+    bar.hidden = false;
+    bar.innerHTML = '<span>📅 Adding to <b>'+DAY_NAMES[(awardDay.getDay()+6)%7]+' '+awardDay.getDate()+'</b></span>'+
+                    '<button onclick="setAwardDay(null)">Back to today</button>';
+  }
+
+  function weekMatrix(){
+    var me=state.me, m={};
+    (me.kids||[]).forEach(function(k){ m[k.id]=[0,0,0,0,0,0,0]; });
+    (state.log||[]).forEach(function(e){
+      if(!m[e.kid]) return;
+      var i=dayIndexOf(e.ts);
+      if(i>-1) m[e.kid][i] += (e.applied!==undefined ? e.applied : e.pts);
+    });
+    return m;
+  }
+
   function weekKey(){
     var d=new Date(); var day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); // Monday start
     return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();
@@ -1455,7 +1552,7 @@
     document.getElementById("hdrCrest").textContent=me.crest;
     document.getElementById("cbName").textContent=me.name;
     document.getElementById("cbCode").textContent=me.code;
-    renderBoard(); renderPrize(); renderPicker(); renderChores(); renderChampions(); updateUndo(); renderLeague();
+    renderBoard(); renderPrize(); renderPicker(); renderChores(); renderChampions(); updateUndo(); renderLeague(); renderWeekBtn(); renderBackdateBar();
   }
 
   function renderBoard(){
@@ -1591,9 +1688,10 @@
   }
   function updateHint(){
     var h=document.getElementById("pickHint");
+    var when = awardDay ? (" for <b>"+DAY_NAMES[(awardDay.getDay()+6)%7]+"</b>") : "";
     if(selected){ var k=state.me.kids.filter(function(x){return x.id===selected;})[0];
-      h.innerHTML="Awarding to <b>"+esc(k.name)+"</b> — tap a chore."; }
-    else h.textContent="Pick a kid, then tap a chore.";
+      h.innerHTML="Awarding to <b>"+esc(k.name)+"</b>"+when+" — tap a chore."; }
+    else h.innerHTML="Pick a kid, then tap a chore."+(when?" Adding"+when+".":"");
   }
 
   function renderChores(){
@@ -1627,12 +1725,12 @@
     me.allTime=Math.max(0,(me.allTime||0)+job.pts);
     var kid=me.kids.filter(function(k){return k.id===selected;})[0];
     if(!state.log) state.log=[];
-    state.log.push({kid:selected, kidName:kid?kid.name:"", label:job.label, emoji:job.emoji, pts:job.pts, applied:applied, ts:Date.now()});
+    state.log.push({kid:selected, kidName:kid?kid.name:"", label:job.label, emoji:job.emoji, pts:job.pts, applied:applied, ts:awardTs()});
     if(state.log.length>300) state.log.shift();
     save();
     tile.classList.add("flash"); setTimeout(function(){tile.classList.remove("flash");},260);
     flyPoint(ev, job.pts);
-    renderBoard(); updateUndo();
+    renderBoard(); updateUndo(); renderWeekBtn();
     var pill=document.querySelector('.pts[data-k="'+selected+'"]');
     if(pill){ pill.classList.remove("pop"); void pill.offsetWidth; pill.classList.add("pop"); }
   }
@@ -1675,9 +1773,33 @@
       var el=document.createElement("div"); el.className="histrow";
       el.innerHTML='<span class="he">'+(e.emoji||"•")+'</span>'+
         '<span class="hl">'+esc(e.label||"Chore")+'</span>'+
-        '<span class="hd">'+d.getDate()+'/'+(d.getMonth()+1)+'</span>'+
         '<span class="hp '+(e.pts<0?"neg":"pos")+'">'+signedVal(e.pts, state.me)+'</span>'+
         '<button class="hx" title="Remove">🗑️</button>';
+      // put it on a different day: awarded Thursday, actually happened Tuesday.
+      // Only the timestamp moves, so no total ever changes.
+      var sel=document.createElement("select");
+      var cur=dayIndexOf(e.ts);
+      weekDays().forEach(function(dd,i){
+        if(isFuture(dd)) return;
+        var o=document.createElement("option");
+        o.value=i; o.textContent=DAY_NAMES[i];
+        if(i===cur) o.selected=true;
+        sel.appendChild(o);
+      });
+      if(cur===-1){                              // logged before this week started
+        var o0=document.createElement("option");
+        o0.value="-1"; o0.textContent=d.getDate()+"/"+(d.getMonth()+1); o0.selected=true;
+        sel.insertBefore(o0, sel.firstChild);
+      }
+      sel.onchange=function(){
+        var i=parseInt(sel.value,10);
+        if(i<0) return;
+        var nd=weekDays()[i]; nd.setHours(12,0,0,0);
+        state.log[r.i].ts = nd.getTime();
+        save(); renderWeekBtn(); renderHistory(kidId);
+        toast("Moved to "+DAY_NAMES[i]);
+      };
+      el.insertBefore(sel, el.querySelector(".hp"));
       el.querySelector(".hx").onclick=function(){ removeLogEntry(r.i, kidId); };
       list.appendChild(el);
     });
@@ -1690,7 +1812,7 @@
     me.allTime=Math.max(0,(me.allTime||0)-e.pts);
     state.log.splice(index,1);
     save();
-    renderBoard(); updateUndo(); renderHistory(kidId);
+    renderBoard(); updateUndo(); renderWeekBtn(); renderHistory(kidId);
   }
 
   // ---------- past winners (family champions) ----------
@@ -2242,6 +2364,73 @@
     document.getElementById("choreOfferSheet").classList.remove("show");
   };
 
+  // ---------- the week grid ----------
+  window.openWeek = function(){ renderWeekGrid(); document.getElementById("weekSheet").classList.add("show"); };
+  window.closeWeek = function(){ document.getElementById("weekSheet").classList.remove("show"); };
+
+  function renderWeekGrid(){
+    var me=state.me, days=weekDays(), m=weekMatrix();
+    var todayIdx=dayIndexOf(Date.now());
+    var t=document.getElementById("weekGrid"); t.innerHTML="";
+
+    var head=document.createElement("tr");
+    head.innerHTML='<th></th>' + days.map(function(d,i){
+      return '<th class="'+(i===todayIdx?"today":"")+'">'+DAY_NAMES[i]+'<br>'+d.getDate()+'</th>';
+    }).join("");
+    t.appendChild(head);
+
+    me.kids.forEach(function(k){
+      var tr=document.createElement("tr");
+      var nameCell=document.createElement("td"); nameCell.className="kid";
+      nameCell.textContent=k.name; nameCell.style.color=k.colour;
+      tr.appendChild(nameCell);
+      days.forEach(function(d,i){
+        var td=document.createElement("td");
+        var pts=m[k.id][i], future=isFuture(d);
+        var b=document.createElement("button");
+        b.className="wcell"+(pts===0?" zero":"")+(pts<0?" neg":"")+(i===todayIdx?" today":"")+(future?" future":"");
+        b.textContent = future ? "·" : (pts===0 ? "–" : (isMoney(me) ? money(centsOf(pts,me)) : pts));
+        if(!future){
+          b.onclick=function(){
+            selected = k.id;                       // jump straight into awarding this kid
+            setAwardDay(i===todayIdx ? null : d);  // today needs no banner
+            closeWeek();
+            renderPicker(); updateHint();
+            document.getElementById("picker").scrollIntoView({block:"center"});
+          };
+        }
+        td.appendChild(b);
+        tr.appendChild(td);
+      });
+      t.appendChild(tr);
+    });
+
+    // count the days already gone that nobody scored on: the forgetting, made visible
+    var blanks=0;
+    for(var i=0;i<=todayIdx;i++){
+      var any=me.kids.some(function(k){ return m[k.id][i] !== 0; });
+      if(!any) blanks++;
+    }
+    var leg=document.getElementById("weekLegend");
+    leg.innerHTML = blanks
+      ? '<b>'+blanks+' day'+(blanks===1?"":"s")+' this week with nothing on '+(blanks===1?"it":"them")+'.</b> Tap one to fill it in.'
+      : 'Every day so far has points on it. 🎉';
+    document.getElementById("weekTitle").textContent = "📅 This week · " + val(weekTotalOf(me), me);
+  }
+
+  // the button under the board nudges when days are empty
+  function renderWeekBtn(){
+    var b=document.getElementById("weekBtn"); if(!b) return;
+    var me=state.me, m=weekMatrix(), todayIdx=dayIndexOf(Date.now()), blanks=0;
+    for(var i=0;i<=todayIdx;i++){
+      var any=me.kids.some(function(k){ return m[k.id][i] !== 0; });
+      if(!any) blanks++;
+    }
+    b.innerHTML = blanks
+      ? '📅 This week, day by day <span class="gap">· '+blanks+' blank</span>'
+      : '📅 This week, day by day';
+  }
+
   window.editPayday = function(){
     var pd=state.me.payday||{};
     paydayScratch = { freq: pd.freq||"week", date: pd.date||nextFridayISO() };
@@ -2351,6 +2540,14 @@
     }
   }
   boot();
+
+  // register the service worker. Wrapped so a browser without it, or a page opened
+  // from file://, just carries on as a normal web page.
+  if("serviceWorker" in navigator && location.protocol.indexOf("http") === 0){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("/sw.js").catch(function(){ /* not fatal */ });
+    });
+  }
 })();
 </script>
 </body>
