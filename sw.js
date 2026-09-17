@@ -6,7 +6,7 @@
    - Everything cross-origin (Supabase live sync) is left untouched - we never
      intercept it, so syncing behaves exactly as before.
 */
-var CACHE = 'famileague-v1';
+var CACHE = 'famileague-v2';
 var SHELL = ['/', '/index.html', '/manifest.webmanifest',
              '/icons/icon-192.png', '/icons/icon-512.png', '/icons/apple-touch-icon.png'];
 
@@ -29,8 +29,18 @@ self.addEventListener('fetch', function (e) {
   var url = new URL(req.url);
   if (url.origin !== self.location.origin) return;  // leave Supabase & co. alone
 
-  // HTML pages -> network-first (latest deploy wins, offline falls back to cache)
-  if (req.mode === 'navigate') {
+  // HTML -> network-first (latest deploy wins, offline falls back to cache).
+  // v1 tested only req.mode === 'navigate'. Some embedded and programmatic loads do
+  // not carry that flag, so index.html fell through to the cache-first branch below
+  // and the device kept running an old build indefinitely. That is not cosmetic: an
+  // old build does not know about newer fields (champions, log, the money settings),
+  // so when it round-trips a row it writes them back empty and silently destroys them.
+  // Now anything that looks like HTML takes the network-first path.
+  var wantsHTML = req.mode === 'navigate'
+    || (req.headers.get('accept') || '').indexOf('text/html') > -1
+    || url.pathname === '/'
+    || /\.html?$/.test(url.pathname);
+  if (wantsHTML) {
     e.respondWith(
       fetch(req).then(function (res) {
         var copy = res.clone();
