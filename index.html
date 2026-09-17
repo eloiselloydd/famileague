@@ -1410,11 +1410,10 @@
     var d = row.data || {};
     state = {
       onboarded:true, rev:row.rev||0,
-      me:{ code:code, name:d.name||"Your Family", crest:d.crest||"🏡",
-           kids:(d.kids&&d.kids.length)?d.kids:[], points:d.points||{},
-           jobs:(d.jobs&&d.jobs.length)?d.jobs:DEFAULT_JOBS.map(function(j){return Object.assign({},j);}),
-           prize:d.prize||"", allTime:d.allTime||0, week:d.weekKey||weekKey() },
-      friends: [], champions:[], hidden:[], log:[]
+      me: meFromRow(code, d),
+      friends: [], hidden: [],
+      champions: Array.isArray(d.champions) ? d.champions : [],
+      log: Array.isArray(d.log) ? d.log : []
     };
     state.me.kids.forEach(function(k){ if(typeof state.me.points[k.id]!=="number") state.me.points[k.id]=0; });
     save();
@@ -1474,11 +1473,10 @@
     if(!row){ toast("That invite link didn't work"); return false; }
     var d = row.data || {};
     state = {
-      onboarded:true, rev:row.rev||0, hidden:[], friends:[], champions:[],
-      me:{ code:code, name:d.name||"Your Family", crest:d.crest||"🏡",
-           kids:(d.kids&&d.kids.length)?d.kids:[], points:d.points||{},
-           jobs:(d.jobs&&d.jobs.length)?d.jobs:DEFAULT_JOBS.map(function(j){ return Object.assign({},j); }),
-           prize:d.prize||"", allTime:d.allTime||0, week:d.weekKey||weekKey() }
+      onboarded:true, rev:row.rev||0, hidden:[], friends:[],
+      me: meFromRow(code, d),
+      champions: Array.isArray(d.champions) ? d.champions : [],
+      log: Array.isArray(d.log) ? d.log : []
     };
     state.me.kids.forEach(function(k){ if(typeof state.me.points[k.id]!=="number") state.me.points[k.id]=0; });
     save();
@@ -1545,6 +1543,33 @@
       if(i>-1) m[e.kid][i] += (e.applied!==undefined ? e.applied : e.pts);
     });
     return m;
+  }
+
+  // Both join paths used to build this object by hand, and they had drifted: each
+  // hardcoded champions:[] and dropped the log, so joining a family threw away its
+  // past winners and history even though both sit in the row. Neither read ANY of
+  // the money-mode fields either, so a device joining a pocket-money family landed
+  // in points mode. One builder now, used by both.
+  function meFromRow(code, d){
+    d = d || {};
+    return {
+      code: code,
+      name: d.name || "Your Family",
+      crest: d.crest || "🏡",
+      kids: (d.kids && d.kids.length) ? d.kids : [],
+      points: d.points || {},
+      jobs: (d.jobs && d.jobs.length) ? d.jobs : DEFAULT_JOBS.map(function(j){ return Object.assign({},j); }),
+      prize: d.prize || "",
+      allTime: d.allTime || 0,
+      week: d.weekKey || weekKey(),
+      mode: d.mode === "money" ? "money" : "points",
+      rate: (typeof d.rate === "number" && d.rate > 0) ? d.rate : DEFAULT_RATE,
+      bank: d.bank || {},
+      goals: d.goals || {},
+      payday: d.payday || null,
+      ranked: d.ranked !== false,
+      choresOfferV2: d.choresOfferV2 === true
+    };
   }
 
   function weekKey(){
